@@ -36,7 +36,7 @@ node src/server/server.js
 ## Create a new Job
 
 1. Enter a Job Name and the original Job Description.
-2. Add zero or more reference images by selecting or dragging files. Set Roles and a Note for each image. Cards remain in insertion order; remove and re-add an image to change its position in V1.
+2. Choose Direct or Generate Master Reference First (see Phase 3 below). Add zero or more reference images by selecting or dragging files. Set Roles and a Note for each image. Cards remain in insertion order; remove and re-add an image to change its position in V1.
 3. Optionally choose asset, motion, subject, Work Scope, purpose, DCC, unit, and Deliverables. Leave unknown production decisions unspecified.
 4. Optionally enable **AI Reference Package** and add the ImageGen reference requests that should be prepared later.
 5. Enter an absolute Job Root path. The most recently submitted root is remembered in browser local storage.
@@ -89,7 +89,7 @@ The server/backend is separated into validation and manifest construction (`job-
    └─ output/
 ```
 
-- `manifest.json` is the machine-readable, versioned canonical source. Schema 1.1 records `work_scope`, `deliverables`, expanded Reference roles, and `reference_package` alongside the preserved brief and relative reference paths.
+- `manifest.json` is the machine-readable, versioned canonical source. Schema 1.2 adds reference_workflow and retains `work_scope`, `deliverables`, expanded Reference roles, and `reference_package` alongside the preserved brief and relative reference paths.
 - `TASK.md` is a readable, structured handoff for Codex or a human artist. The description and reference notes are included without summarization or rewriting.
 - `RUN_LOG.md` is an initially empty execution-history template for the actual 3D production worker. Composer never invents results and never overwrites existing run history.
 - `references/` contains byte-for-byte copies of uploaded files, renamed sequentially to avoid collisions. No image is resized, converted, or recompressed.
@@ -137,7 +137,7 @@ Likely next steps are a native folder picker, explicit drag-to-reorder controls,
 
 - **NEW JOB / CREATE JOB** refuses an existing destination. **LOAD JOB / SAVE CHANGES** updates only the exact folder authorized by its server-side edit token.
 - After a successful save, the UI adopts the returned reference paths. Another unchanged save reuses those files. Removing an existing reference still leaves its source file on disk.
-- No-op saves preserve `job.original_name`, explicit empty lists, and unchanged absent/null values and extension metadata. Schema 1.0 still follows the supported migration to 1.1.
+- No-op saves preserve `job.original_name`, explicit empty lists, and unchanged absent/null values and extension metadata. Schemas 1.0 and 1.1 follow the supported migration to 1.2.
 - Unsupported schemas (including future versions) open for inspection where possible, with a warning and disabled save. The server does not grant an edit token and rechecks the on-disk schema before saving.
 - The server binds to `127.0.0.1`. All requests require a local Host with the actual server port. All POST endpoints require `Origin: http://127.0.0.1:<port>` or `http://localhost:<port>`, and `Content-Type: application/json`. Missing/null/external origins are rejected before reading the body or changing files. Local scripts must send these headers; this is a browser-origin boundary, not account authentication.
 
@@ -219,7 +219,7 @@ Applied provenance is optional schema 1.1 convenience metadata:
 
 Snapshots survive LOAD/SAVE/SAVE AS and do not depend on the current preset file. Subsequent manual edits change the authoring text, while its applied preset snapshot remains an application-time record. Refresh does not reapply or rewrite snapshots. Unedited CRLF text is retained when serialized despite textarea newline normalization. Omitting optional provenance in an older client request preserves it; explicit null clears it. Reference snapshot keys follow the new Job's own reference paths.
 
-Schema stays **1.1**: these are optional metadata extensions, not new required authoring fields. Existing 1.1 no-op preservation, known 1.0 migration, and future-schema protection remain in effect. Composer version remains **0.2.1** for this working change.
+Phase 2 originally used Composer 0.2.1 / schema 1.1 for optional metadata extensions. Phase 3 below supersedes those versions.
 
 The listing API discovers **AIreferencePackage** and **GenerateMasterReference**, but neither has an execution/application workflow in Phase 2. GPT Image, Codex execution, master-reference generation, databases, cloud sync, and templating are not implemented.
 
@@ -239,3 +239,54 @@ The Phase 2 Edge smoke checks both confirmation cancellations, Save As switching
 ### Stop all Node.js processes
 
 Run `stop-all-node.bat` to force-stop every process named `node.exe`, including Node applications other than Composer. It uses `taskkill /F /IM node.exe`, shows the result, and pauses. If access is denied for an elevated process, run the BAT as administrator. Then start Composer again and refresh the browser. The BAT is a manual utility and is not invoked by Composer.
+
+## Phase 3: Reference Workflow / Master Reference authoring
+
+Current Composer **0.3.0**, manifest schema **1.2**. This phase adds authoring and serialization only.
+
+- **Use Reference Images Directly** is the default. Images, Roles, Notes and note presets retain their existing behavior.
+- **Generate Master Reference First** accepts zero or multiple optional source images. All attached images become source IDs. A nonblank **Master Reference Request** is required; its preset is optional. **AI Reference Package Instruction** and its preset are optional.
+- The two text areas have independent dropdown/APPLY controls for `GenerateMasterReference` and `AIreferencePackage`. Selection does not apply text. Replacing nonempty text asks for confirmation. Text is literal, without variable substitution or execution.
+- Applying records the exact preset filename and original snapshot. Editing a textarea changes only its effective instruction. LOAD restores the saved text even if the preset changed or disappeared; a nonblocking notice explains that the saved snapshot is retained.
+- Switching modes preserves images and both instruction drafts within the current UI session. Saving Direct serializes only its active `{ "mode": "direct" }` contract; a later LOAD starts from that saved state. START NEW JOB clears drafts.
+- The older structured **AI Reference Package** items remain an independent optional plan; they do not invoke generation or replace these instructions.
+
+Generate mode example (image-free requests use an empty source ID list):
+
+```json
+{
+  "reference_workflow": {
+    "mode": "generate_master_reference",
+    "source_reference_ids": ["REF-001", "REF-002"],
+    "generate_master_reference": {
+      "preset_file": "Example.md",
+      "preset_snapshot": "Original applied text",
+      "effective_instruction": "User-edited generation request"
+    },
+    "ai_reference_package": {
+      "preset_file": null,
+      "preset_snapshot": null,
+      "effective_instruction": "Use the generated views for modeling"
+    },
+    "requested_output_root": "work/AIReferencePackage"
+  }
+}
+```
+
+`TASK.md` renders the selected workflow, effective instructions, source IDs and requested future output location. The request asks the downstream agent to generate the Master Reference before modeling. Composer creates no fake Master Reference image/path in `references`, and does not create the requested output subfolder or claim execution. It makes no GPT Image or external API calls.
+
+SAVE uses the existing recoverable transaction and preserves source image bytes, existing `work/`, `output/`, and `RUN_LOG.md`. SAVE AS copies authoring state, workflow and retained source images into an independent Job; it creates fresh runtime state. Schemas 1.0 and 1.1 without a workflow load as Direct and migrate to 1.2 on SAVE. Schema 1.2 no-op saves preserve unchanged extension fields. Unknown schemas or workflow modes are read-only for both save actions, including revalidation before writing.
+
+### Phase 3 verification and next boundary
+
+`node --test` includes 49 existing tests and 12 Phase 3 regressions (61 total). With the optional Playwright setup above, run:
+
+```powershell
+node tools/browser-phase1.mjs
+node tools/browser-phase2.mjs
+node tools/browser-phase3.mjs
+```
+
+Phase 3 checks Direct, zero/multiple source generation, preset apply/cancel, missing/changed sources, snapshot/effective separation, mode drafts, SAVE and SAVE AS. Fixtures, screenshots and reports stay under ignored `.tmp/browser-phase3-*`; user Jobs and PromptPreset sources are not modified. Console errors and external requests are checked.
+
+Phase 4 remains separate: agent execution contract, GPT Image invocation, output organization, `AI_REFERENCE_PACKAGE.md`, modeling handoff and actual RUN_LOG recording. No execution was added here. Restart the running Node server and refresh the browser after updating so the UI and backend use the same version.

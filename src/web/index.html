@@ -56,9 +56,37 @@
         </section>
 
         <section class="panel">
+          <div class="section-heading"><div><h2>Reference Workflow</h2><p>Choose how the downstream agent should use references.</p></div></div>
+          <fieldset><legend>Workflow mode</legend><div class="option-grid">
+            <label class="choice"><input id="workflow-direct" type="radio" name="referenceWorkflow" value="direct" checked /><span>Use Reference Images Directly</span></label>
+            <label class="choice"><input id="workflow-generate" type="radio" name="referenceWorkflow" value="generate_master_reference" /><span>Generate Master Reference First</span></label>
+          </div></fieldset>
+          <div id="master-workflow-fields" class="field-grid single" hidden>
+            <p>Author a request for the agent to execute before modeling. Composer does not call GPT Image or generate images.</p>
+            <div class="preset-row">
+              <label>GenerateMasterReference Preset<select id="master-preset"></select></label>
+              <button id="apply-master-preset" class="secondary-button" type="button">APPLY</button>
+            </div>
+            <small id="master-preset-status" role="status"></small>
+            <label>Master Reference Request <span class="required">Required in this mode</span>
+              <textarea id="master-instruction" rows="8" placeholder="Describe the Master Reference the agent should generate."></textarea>
+            </label>
+            <div class="preset-row">
+              <label>AIreferencePackage Preset<select id="package-instruction-preset"></select></label>
+              <button id="apply-package-instruction-preset" class="secondary-button" type="button">APPLY</button>
+            </div>
+            <small id="package-instruction-preset-status" role="status"></small>
+            <label>AI Reference Package Instruction <span>Optional</span>
+              <textarea id="package-instruction-instruction" rows="6" placeholder="Explain how the agent should use the generated reference package."></textarea>
+            </label>
+            <small>Requested agent output: work/AIReferencePackage/ (not yet generated). Switching to Direct keeps these drafts in this session; saving Direct stores only the Direct workflow.</small>
+          </div>
+        </section>
+
+        <section class="panel">
           <div class="section-heading">
             <span class="step">02</span>
-            <div><h2>Reference images</h2><p>Add images in the exact order they should be reviewed.</p></div>
+            <div><h2 id="reference-heading">Reference images</h2><p id="reference-help">Add images in the exact order they should be reviewed.</p></div>
           </div>
           <div id="drop-zone" class="drop-zone" tabindex="0" role="button" aria-label="Add reference images">
             <input id="reference-input" type="file" accept="image/*" multiple hidden />

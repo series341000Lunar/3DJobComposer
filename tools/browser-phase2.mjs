@@ -56,7 +56,7 @@ try {
   }
   async function saved() { await page.locator("#status").filter({ hasText: "saved successfully" }).waitFor(); }
   await page.goto(url);
-  await page.locator("#version").filter({ hasText: "schema 1.1" }).waitFor();
+  await page.locator("#version").filter({ hasText: "schema 1.2" }).waitFor();
   assert.deepEqual(await page.locator("#description-preset option").allTextContents(), ["No presets available"]);
   checks.push("Missing preset folders: manual UI starts normally");
   await page.locator("#load-job-path").fill(a.jobPath);

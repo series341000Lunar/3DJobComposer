@@ -33,15 +33,15 @@ function imageReference(overrides = {}) {
   };
 }
 
-test("V1 create: creates the 1.1 package structure without references", async () => {
+test("V1 create: creates the 1.2 package structure without references", async () => {
   const root = await mkdtemp(path.join(os.tmpdir(), "3djc-create-"));
   const result = await createJob(baseInput(root));
   const entries = await readdir(result.jobPath);
   assert.deepEqual(entries.sort(), ["RUN_LOG.md", "TASK.md", "manifest.json", "output", "references", "work"].sort());
   assert.equal((await stat(path.join(result.jobPath, "references"))).isDirectory(), true);
   const manifest = JSON.parse(await readFile(path.join(result.jobPath, "manifest.json"), "utf8"));
-  assert.equal(manifest.schema_version, "1.1");
-  assert.equal(manifest.composer_version, "0.2.1");
+  assert.equal(manifest.schema_version, "1.2");
+  assert.equal(manifest.composer_version, "0.3.0");
   assert.deepEqual(manifest.work_scope, ["Modeling"]);
   assert.deepEqual(manifest.deliverables, ["BLEND"]);
   assert.deepEqual(manifest.references, []);

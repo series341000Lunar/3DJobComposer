@@ -1,5 +1,7 @@
-export const COMPOSER_VERSION = "0.2.1";
-export const SCHEMA_VERSION = "1.1";
+export const COMPOSER_VERSION = "0.3.0";
+export const SCHEMA_VERSION = "1.2";
+
+export const SUPPORTED_SCHEMAS = Object.freeze(["1.0", "1.1", "1.2"]);
 
 export const OPTIONS = Object.freeze({
   referenceRoles: [

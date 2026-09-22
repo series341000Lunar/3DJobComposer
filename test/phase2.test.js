@@ -154,7 +154,7 @@ test("P2 T13 description snapshot is retained through LOAD/SAVE/SAVE AS", async 
   const b = await saveJobAs(a.jobPath, { ...loaded.job, jobName: "T13-B", description: "Manual edit after applying" });
   assert.deepEqual(b.manifest.metadata.job_description_preset, preset);
   assert.equal(b.manifest.job.description, "Manual edit after applying");
-  assert.equal(b.manifest.schema_version, "1.1");
+  assert.equal(b.manifest.schema_version, "1.2");
 });
 test("P2 T14 reference note snapshots follow their files and removal clears only their metadata", async () => {
   const preset = { file: "ShapeOnly.md", resolved_content: "형태만 참고\r\n" };

@@ -2,8 +2,8 @@
 
 작성 기준일: 2026-09-22  
 프로젝트 경로: `Z:\3DJobComposer`<br>
-현재 Composer 버전: `0.2.1`  
-현재 manifest schema: `1.1`
+현재 Composer 버전: `0.3.0`<br>
+현재 manifest schema: `1.2`
 
 이 문서는 다른 Codex 계정이나 개발 담당자가 기존 설계 계약을 훼손하지 않고 3DJobComposer를 유지·확장하기 위한 인계 문서다. 구현 세부사항보다 아래의 **변경 불가 원칙**을 먼저 이해해야 한다.
 
@@ -47,7 +47,7 @@ QNAP TS-1655를 만들어주세요.
 
 Asset Category, Quality, Motion, Subject, Purpose, DCC, Unit, Work Scope, Deliverables는 제작 의도를 보조하는 필드다. 알 수 없는 값은 `Unspecified` 또는 빈 목록으로 표현할 수 있어야 한다.
 
-Job 생성에 본질적으로 필요한 것은 다음뿐이다.
+모든 Job 생성에 공통으로 필요한 것은 다음과 같다. Generate 모드를 선택하면 Master Reference Request도 필수다.
 
 - 안전하게 변환 가능한 Job Name
 - 비어 있지 않은 Job Description
@@ -128,13 +128,13 @@ Composer/schema 버전과 UI에서 사용하는 허용값 목록을 정의한다
 
 - 사용자 입력 검증 및 정규화
 - Windows-safe Job Name 생성
-- manifest 1.1 구성
+- manifest 1.2 및 Reference Workflow 구성
 - AI Reference Package Item 검증
 
 ### `job-service.js`
 
 - 새 Job의 staged/atomic 생성
-- 기존 Job 로드와 schema 1.0 호환 변환
+- 기존 Job 로드와 schema 1.0/1.1 호환 변환
 - 로드된 Job 저장
 - Reference 원본 복사 및 보존 정책
 - RUN_LOG 템플릿 생성과 기존 로그 보존
@@ -209,12 +209,12 @@ http://127.0.0.1:4173
 - `work/`: 작업 중간 산출물
 - `output/`: 최종 산출물
 
-## 7. manifest 1.1 개요
+## 7. manifest 1.2 개요
 
 ```json
 {
-  "schema_version": "1.1",
-  "composer_version": "0.2.1",
+  "schema_version": "1.2",
+  "composer_version": "0.3.0",
   "job": {
     "name": "example_job",
     "description": "사용자 원문"
@@ -232,6 +232,7 @@ http://127.0.0.1:4173
   },
   "work_scope": ["Unspecified"],
   "deliverables": [],
+  "reference_workflow": { "mode": "direct" },
   "references": [],
   "reference_package": {
     "enabled": false,
@@ -291,7 +292,7 @@ node --test
 
 현재 자동 테스트는 다음을 확인한다.
 
-1. Schema 1.1 새 Job 구조 및 RUN_LOG 생성
+1. Schema 1.2 새 Job 구조 및 RUN_LOG 생성
 2. Reference 원본 바이트, 순서, Role, Note 보존
 3. 기존 Job Load와 Reference 복원
 4. Load 후 SAVE와 기존 RUN_LOG byte-for-byte 보존
@@ -413,4 +414,23 @@ RUN_LOG.md는 실제 제작 작업자의 실행 기록입니다. 새 Job에는 �
 - Description 및 Reference Note 옆 dropdown/APPLY를 사용한다. 선택만으로 적용하지 않으며 기존 텍스트 교체에는 확인을 받는다. Note 적용은 다른 Reference나 Role을 바꾸지 않는다. Refresh Presets는 목록/내용만 새로 읽는다.
 - Snapshot은 schema 1.1의 선택적 `metadata.job_description_preset` 및 `metadata.reference_note_presets[reference_file]`에 `file`과 `resolved_content`로 저장한다. 수동 편집 후에도 적용 당시 원문은 유지한다. 구형 요청의 metadata 생략은 삭제로 취급하지 않는다. 상세 JSON 계약은 README 참조.
 - Composer 0.2.1 / schema 1.1 유지. 기존 30개 + Phase 2 회귀 19개, 실제 Edge 취소·Save As·프리셋 smoke를 실행한다. `tools/browser-phase2.mjs`의 settings/Job/preset fixture는 모두 .tmp 내부에 격리한다.
-- AIreferencePackage / GenerateMasterReference는 discovery만 제공한다. Reference Workflow mode, Generate Master workflow, AIreferencePackage workflow, Codex-side GPT Image execution contract는 Phase 3 범위로 남긴다.
+- AIreferencePackage / GenerateMasterReference는 discovery만 제공한다. Reference Workflow mode, Generate Master workflow, AIreferencePackage workflow, authoring은 아래 Phase 3에서 구현했다. Codex-side GPT Image execution contract는 Phase 4에 남긴다.
+
+## 18. Phase 3 Reference Workflow / Master Reference Authoring
+
+현재 버전은 Composer 0.3.0 / schema 1.2다. 앞선 Phase 1·2 항목의 버전은 당시 기록이다.
+
+- `reference_workflow.mode`: 기본 `direct` 또는 `generate_master_reference`. 알려진 schema 1.0/1.1에서 필드가 없으면 Direct로 복원하고 SAVE 시 1.2로 마이그레이션한다.
+- Generate는 이미지 0개/여러 개를 허용한다. 모든 첨부 Reference를 `source_reference_ids`로 기록한다. 이미 생성된 Master Reference처럼 가짜 파일 항목을 만들지 않는다.
+- Generate에서 Master Reference Request만 필수다. GenerateMasterReference 프리셋, AI Reference Package Instruction, AIreferencePackage 프리셋은 선택 사항이다.
+- 두 instruction 객체는 각각 `preset_file`, `preset_snapshot`, `effective_instruction`을 보존한다. APPLY만 텍스트를 적용하며 기존 텍스트는 교체 확인을 받는다. 수정 후 snapshot은 그대로이고 effective만 바뀐다.
+- LOAD는 저장된 원문을 복원한다. 프리셋 파일이 없어지거나 변경되어도 재적용하지 않고 비차단 안내를 표시한다. 변수 치환·해석·이미지 생성은 없다.
+- 모드 전환은 이미지/Role/Note와 생성 지시문 draft를 현재 세션에 보존한다. Direct 저장은 활성 Direct 계약만 기록한다. 따라서 저장 후 재LOAD에는 숨겨 둔 Generate draft가 포함되지 않는다. 비활성의 미완성 생성 지시문은 Direct SAVE를 막지 않는다.
+- TASK는 mode, effective 지시문, source ID, 요청 산출물 위치 `work/AIReferencePackage/`와 모델링 전 agent가 생성할 요청임을 명시한다. 이 경로는 아직 없는 미래 산출물 위치이고 Composer가 생성하지 않는다.
+- 기존 구조화 `reference_package` Item은 별도 authoring 기능으로 유지한다.
+- SAVE는 기존 transaction을 사용하여 Reference 원본, work/output 및 RUN_LOG를 보존한다. SAVE AS는 workflow 및 authoring Reference만 복사하고 작업 산출물/이력은 복사하지 않는다.
+- 미지원 schema/mode는 읽기 전용이다. 예전 편집 문맥으로 저장하더라도 디스크 상태를 다시 확인하여 차단한다.
+- 기존 49개 + 신규 12개 = 61개 자동 테스트. 실제 Edge 검증은 Phase 1/2/3 스크립트로 수행한다. Phase 3는 console error와 외부 HTTP 요청이 없는지도 검증한다.
+- Phase 4 미구현: Codex/agent 실행 계약, GPT Image 호출, 생성 결과 정리, AI_REFERENCE_PACKAGE.md, 모델링 handoff, 실제 RUN_LOG 기록. 사용자 승인 없이 실행 계층으로 확장하지 않는다.
+
+상세 JSON 예제와 재현 명령은 README의 Phase 3 계약을 따른다. 서버 업데이트 후 기존 Node 프로세스를 재시작하고 브라우저를 새로 고쳐야 한다.

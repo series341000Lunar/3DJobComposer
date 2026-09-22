@@ -32,6 +32,29 @@ export function renderTask(job, references) {
     });
   }
 
+
+  const workflow = job.referenceWorkflow || { mode: "direct" };
+  sections.push("## Reference Workflow", "");
+  if (workflow.mode === "generate_master_reference") {
+    sections.push(
+      "Mode: Generate Master Reference First", "",
+      "Master Reference generation is requested; no generated Master Reference is included in this package.",
+      "Before primary modeling, the execution Agent should create a Master Reference using the Job Description, optional Source References, their Roles/Notes, and the effective instruction below.",
+      "Composer packages this request only. It does not call GPT Image or generate images.",
+      "Retain Source References for later verification and detail checks; a Master Reference does not replace or delete them.", "",
+      "### Master Reference Generation Instruction", "",
+      workflow.generate_master_reference.effective_instruction, "",
+      "### AI Reference Package Instruction", "",
+      workflow.ai_reference_package.effective_instruction || "No additional usage instruction was supplied.", "",
+      "### Source References", "", renderList(workflow.source_reference_ids), "",
+      "### Requested Working Output", "", "`work/AIReferencePackage/`", "",
+      "This is a requested future output location, not an existing Master Reference file.", ""
+    );
+  } else {
+    sections.push("Mode: Direct Reference", "",
+      "Use the supplied References directly according to their Roles and Notes.", "");
+  }
+
   sections.push("## AI Reference Package", "");
   if (!job.referencePackage.enabled) {
     sections.push("Disabled.", "");

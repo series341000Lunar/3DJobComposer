@@ -2,6 +2,7 @@ const state = {
   config: null,
   presets: {}, destinations: [], saving: false,
   descriptionPreset: null, descriptionSource: "", loadedIdentity: null,
+  workflowInstructions: {},
   readOnly: false,
   references: [],
   aiItems: [],
@@ -23,12 +24,65 @@ function populatePresets(select, category) {
   presets.forEach((preset) => select.add(new Option(preset.file, preset.file)));
   if (presets.some((preset) => preset.file === current)) select.value = current;
 }
+
+const workflowFields = [
+  { key: "generate_master_reference", prefix: "master", category: "GenerateMasterReference" },
+  { key: "ai_reference_package", prefix: "package-instruction", category: "AIreferencePackage" }
+];
+function updateWorkflow() {
+  const generate = byId("workflow-generate").checked;
+  byId("master-workflow-fields").hidden = !generate;
+  byId("reference-heading").textContent = generate ? "Source reference images (optional)" : "Reference images";
+  byId("reference-help").textContent = generate
+    ? "Attach zero or more sources. All attached images are included in the request; no Master Reference exists yet."
+    : "Add images in the exact order they should be reviewed.";
+}
+function updateWorkflowPresetNotices() {
+  for (const { key, prefix, category } of workflowFields) {
+    const saved = state.workflowInstructions[key];
+    const current = (state.presets[category] || []).find((item) => item.file === saved?.preset_file);
+    byId(prefix + "-preset-status").textContent = !saved?.preset_file ? "Manual instruction; no applied preset." :
+      !current ? `Saved preset: ${saved.preset_file}. Source preset unavailable; saved snapshot and instruction retained.` :
+      current.content !== saved.preset_snapshot ? `Saved preset: ${saved.preset_file}. Source has changed; saved snapshot and instruction retained.` :
+      `Applied preset: ${saved.preset_file}. Edits below change only the effective instruction.`;
+  }
+}
+function restoreWorkflow(workflow = { mode: "direct" }) {
+  state.workflowInstructions = {};
+  byId("workflow-direct").checked = workflow.mode === "direct";
+  byId("workflow-generate").checked = workflow.mode === "generate_master_reference";
+  for (const { key, prefix, category } of workflowFields) {
+    const saved = workflow[key] || { preset_file: null, preset_snapshot: null, effective_instruction: "" };
+    state.workflowInstructions[key] = { ...saved };
+    byId(prefix + "-instruction").value = saved.effective_instruction || "";
+    populatePresets(byId(prefix + "-preset"), category);
+    byId(prefix + "-preset").value = (state.presets[category] || []).some((item) => item.file === saved.preset_file) ? saved.preset_file : "";
+  }
+  updateWorkflow();
+  updateWorkflowPresetNotices();
+}
+function serializeWorkflow() {
+  if (byId("workflow-direct").checked) return { mode: "direct" };
+  const workflow = { mode: "generate_master_reference" };
+  for (const { key, prefix } of workflowFields) {
+    const saved = state.workflowInstructions[key] || {};
+    workflow[key] = {
+      preset_file: saved.preset_file || null,
+      preset_snapshot: saved.preset_snapshot ?? null,
+      effective_instruction: exactText(byId(prefix + "-instruction"), saved.effective_instruction || "")
+    };
+  }
+  return workflow;
+}
+
 async function refreshPresets() {
   try {
     const response = await fetch("/api/presets");
     const result = await response.json();
     if (!response.ok) throw new Error(result.error);
     state.presets = result.categories;
+    workflowFields.forEach(({ prefix, category }) => populatePresets(byId(prefix + "-preset"), category));
+    updateWorkflowPresetNotices();
     populatePresets(byId("description-preset"), "jobDescription");
     byId("reference-list").querySelectorAll(".reference-preset").forEach((select) => populatePresets(select, "Referenceimage"));
     byId("preset-status").textContent = result.warnings.join("\n");
@@ -329,6 +383,7 @@ function applyLoadedJob(result) {
   state.loadedIdentity = { jobName: job.jobName, rootPath: job.rootPath };
   state.descriptionPreset = job.descriptionPreset || null;
   state.descriptionSource = job.description;
+  restoreWorkflow(job.referenceWorkflow);
   state.editToken = result.editToken;
   state.loadedJobPath = result.jobPath;
   state.openToken = result.openToken;
@@ -386,6 +441,7 @@ async function loadExistingJob() {
 }
 
 function resetToNewJob() {
+  restoreWorkflow();
   state.editToken = null;
   state.loadedJobPath = null;
   state.loadedIdentity = null;
@@ -428,7 +484,8 @@ async function buildPayload() {
     workScope: checkedValues(byId("work-scope-options")),
     deliverables: checkedValues(byId("output-options")),
     references: await serializeReferences(),
-    referencePackage: serializeReferencePackage()
+    referencePackage: serializeReferencePackage(),
+    referenceWorkflow: serializeWorkflow()
   };
 }
 
@@ -544,6 +601,20 @@ async function initialize() {
   byId("save-destination").addEventListener("click", () => changeDestination("save"));
   byId("delete-destination").addEventListener("click", () => changeDestination("delete"));
   byId("root-path").addEventListener("input", () => renderDestinations(state.destinations.find((preset) => preset.path === byId("root-path").value)?.name || ""));
+  for (const { key, prefix, category } of workflowFields) {
+    byId("apply-" + prefix + "-preset").addEventListener("click", () =>
+      applyTextPreset(byId(prefix + "-preset"), category, byId(prefix + "-instruction"),
+        "현재 지시문을 프리셋 내용으로 교체하시겠습니까?", (snapshot) => {
+          state.workflowInstructions[key] = {
+            preset_file: snapshot.file, preset_snapshot: snapshot.resolved_content,
+            effective_instruction: snapshot.resolved_content
+          };
+          updateWorkflowPresetNotices();
+        }));
+  }
+  byId("workflow-direct").addEventListener("change", updateWorkflow);
+  byId("workflow-generate").addEventListener("change", updateWorkflow);
+  restoreWorkflow();
   setMode("new");
   await Promise.all([refreshPresets(), loadDestinations()]);
 }

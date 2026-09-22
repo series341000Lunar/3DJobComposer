@@ -4,7 +4,7 @@ import path from "node:path";
 import crypto from "node:crypto";
 import { commitSave, recoveryStatus } from "./save-transaction.js";
 import { isDeepStrictEqual } from "node:util";
-import { OPTIONS } from "./constants.js";
+import { OPTIONS, COMPOSER_VERSION, SCHEMA_VERSION, SUPPORTED_SCHEMAS } from "./constants.js";
 import { buildManifest, normalizeJobInput, ValidationError } from "./job-schema.js";
 import { renderTask } from "./task-renderer.js";
 
@@ -126,12 +126,15 @@ export async function loadJob(jobPathInput) {
   try { manifest = JSON.parse(await readFile(manifestPath, "utf8")); } catch (error) { throw Object.assign(new JobLoadError(`${recovery?.message || "manifest.json could not be read:"} ${error.message}`), { recovery }); }
 
   const warnings = [];
-  const unsupportedSchema = !["1.0", "1.1"].includes(String(manifest.schema_version));
+  const unsupportedSchema = !SUPPORTED_SCHEMAS.includes(String(manifest.schema_version));
+  const workflowSource = manifest.reference_workflow ?? { mode: "direct" };
+  const unsupportedWorkflow = !["direct", "generate_master_reference"].includes(workflowSource?.mode);
+  if (unsupportedWorkflow) warnings.push("Unsupported Reference Workflow mode; saving is disabled to preserve its data.");
   if (recovery) warnings.push(recovery.message);
   if (!(await exists(path.join(jobPath, "TASK.md")))) warnings.push("TASK.md is missing. It will be regenerated when the Job is saved.");
   if (!(await exists(path.join(jobPath, "references")))) warnings.push("references/ is missing. It will be recreated when the Job is saved.");
   if (!(await exists(path.join(jobPath, "RUN_LOG.md")))) warnings.push("RUN_LOG.md is missing. An empty template will be added when the Job is saved.");
-  if (!["1.0", "1.1"].includes(String(manifest.schema_version))) warnings.push(`Schema ${manifest.schema_version ?? "unknown"} is not explicitly supported; saving is disabled to prevent unsupported data loss (supported schema: 1.1).`);
+  if (!SUPPORTED_SCHEMAS.includes(String(manifest.schema_version))) warnings.push(`Schema ${manifest.schema_version ?? "unknown"} is not explicitly supported; saving is disabled to prevent unsupported data loss (supported schema: ${SCHEMA_VERSION}).`);
 
   const manifestReferences = Array.isArray(manifest.references) ? manifest.references : [];
   const idMap = new Map();
@@ -185,12 +188,13 @@ export async function loadJob(jobPathInput) {
   const legacyOutputs = manifest.target?.outputs;
   return {
     jobPath,
-    readOnly: unsupportedSchema || Boolean(recovery),
+    readOnly: unsupportedSchema || unsupportedWorkflow || Boolean(recovery),
     schemaVersion: manifest.schema_version,
     recovery,
     warnings,
     job: {
       jobName: manifest.job?.name || path.basename(jobPath),
+      referenceWorkflow: unsupportedWorkflow ? { mode: "direct" } : workflowSource,
       descriptionPreset: manifest.metadata?.job_description_preset ?? null,
       description: typeof manifest.job?.description === "string" ? manifest.job.description : "",
       rootPath: path.dirname(jobPath),
@@ -237,6 +241,7 @@ function restoreOmittedPresets(input, loaded) {
   if (!input || typeof input !== "object") throw new ValidationError("Request body is invalid.");
   return {
     ...input,
+    referenceWorkflow: Object.hasOwn(input, "referenceWorkflow") ? input.referenceWorkflow : loaded.referenceWorkflow,
     descriptionPreset: Object.hasOwn(input, "descriptionPreset") ? input.descriptionPreset : loaded.descriptionPreset,
     references: Array.isArray(input.references) ? input.references.map((reference) => reference && typeof reference === "object" ? ({
       ...reference,
@@ -251,10 +256,11 @@ export async function saveJob(jobPathInput, rawInput) {
   const pending = await recoveryStatus(jobPath);
   if (pending) throw Object.assign(new Error(pending.message), { statusCode: 409, recovery: pending });
   const original = JSON.parse(await readFile(path.join(jobPath, "manifest.json"), "utf8"));
-  if (!["1.0", "1.1"].includes(String(original.schema_version))) {
-    throw Object.assign(new Error(`Schema ${original.schema_version ?? "unknown"} is read-only; supported schema is 1.1.`), { statusCode: 409 });
+  if (!SUPPORTED_SCHEMAS.includes(String(original.schema_version))) {
+    throw Object.assign(new Error(`Schema ${original.schema_version ?? "unknown"} is read-only; supported schema is ${SCHEMA_VERSION}.`), { statusCode: 409 });
   }
   const loaded = await loadJob(jobPath);
+  if (loaded.readOnly) throw Object.assign(new Error("This Job is read-only; saving is disabled."), { statusCode: 409 });
   const job = normalizeJobInput(restoreOmittedPresets(rawInput, loaded.job));
   if (job.name.toLowerCase() !== path.basename(jobPath).toLowerCase()) throw new ValidationError("A loaded Job cannot be renamed during SAVE CHANGES.", "jobName");
   const referenceDirectory = path.join(jobPath, "references");
@@ -280,14 +286,21 @@ export async function saveJob(jobPathInput, rawInput) {
       storedReferences.push(storedReference(reference, relativePath));
     }
   }
-  const baselineJob = normalizeJobInput(loaded.job);
+  const baselineJob = normalizeJobInput(loaded.job, { allowIncompleteWorkflow: true });
   const baselineRefs = loaded.job.references.map((ref) => storedReference(ref, ref.existingFile));
   const baseline = buildManifest(baselineJob, baselineRefs);
   const generated = buildManifest(job, storedReferences);
   const manifest = preserveUnedited(original, baseline, generated);
   if (String(original.schema_version) === "1.0") {
-    Object.assign(manifest, { schema_version: "1.1", work_scope: job.workScope,
+    Object.assign(manifest, { work_scope: job.workScope,
       deliverables: job.deliverables, reference_package: generated.reference_package });
+  }
+  if (String(original.schema_version) !== SCHEMA_VERSION) {
+    manifest.schema_version = SCHEMA_VERSION;
+    manifest.composer_version = COMPOSER_VERSION;
+    manifest.reference_workflow = generated.reference_workflow;
+  } else if (!Object.hasOwn(original, "reference_workflow")) {
+    manifest.reference_workflow = generated.reference_workflow;
   }
   const entries = [
     { file: "manifest.json", bytes: Buffer.from(`${JSON.stringify(manifest, null, 2)}\n`) },

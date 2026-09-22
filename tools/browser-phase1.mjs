@@ -24,7 +24,7 @@ try {
     if (message.type() === "warning") warnings.push(message.text());
   });
   await page.goto(`http://127.0.0.1:${server.address().port}`);
-  await page.locator("#version").filter({ hasText: "schema 1.1" }).waitFor();
+  await page.locator("#version").filter({ hasText: "schema 1.2" }).waitFor();
   assert.equal(await page.locator("#mode-badge").innerText(), "NEW JOB");
   await page.locator("#job-name").fill("Browser Synthetic");
   await page.locator("#description").fill("Original browser description");
@@ -40,7 +40,7 @@ try {
   await page.getByRole("button", { name: "SAVE CHANGES", exact: true }).click();
   await page.locator("#status").filter({ hasText: "saved successfully" }).waitFor();
   await page.reload();
-  await page.locator("#version").filter({ hasText: "schema 1.1" }).waitFor();
+  await page.locator("#version").filter({ hasText: "schema 1.2" }).waitFor();
   await page.locator("#load-job-path").fill(jobPath);
   await page.getByRole("button", { name: "LOAD JOB", exact: true }).click();
   await page.locator("#mode-title").filter({ hasText: "Editing Existing Job" }).waitFor();

@@ -113,7 +113,37 @@ function validateReferencePackage(value, referenceCount) {
   };
 }
 
-export function normalizeJobInput(input) {
+
+function normalizeWorkflowInstruction(value, required) {
+  if (value == null) value = {};
+  if (typeof value !== "object" || Array.isArray(value)) throw new ValidationError("Workflow instruction must be an object.", "referenceWorkflow");
+  const snapshot = value.preset_file == null ? null : validatePreset({
+    file: value.preset_file, resolved_content: value.preset_snapshot
+  });
+  if (!snapshot && value.preset_snapshot != null) throw new ValidationError("A preset snapshot needs its filename.", "referenceWorkflow");
+  return {
+    preset_file: snapshot?.file ?? null,
+    preset_snapshot: snapshot?.resolved_content ?? null,
+    effective_instruction: requireText(value.effective_instruction ?? "", "Master / package effective instruction", { allowEmpty: !required })
+  };
+}
+
+export function normalizeReferenceWorkflow(value, referenceCount, { allowIncomplete = false } = {}) {
+  if (value == null) value = { mode: "direct" };
+  if (typeof value !== "object" || Array.isArray(value)) throw new ValidationError("Reference Workflow must be an object.", "referenceWorkflow");
+  const mode = requireOption(value.mode ?? "direct", ["direct", "generate_master_reference"], "referenceWorkflow.mode");
+  // Inactive generation drafts stay in the UI session, not in the active contract.
+  if (mode === "direct") return { mode };
+  return {
+    mode,
+    source_reference_ids: Array.from({ length: referenceCount }, (_, index) => `REF-${String(index + 1).padStart(3, "0")}`),
+    generate_master_reference: normalizeWorkflowInstruction(value.generate_master_reference, !allowIncomplete),
+    ai_reference_package: normalizeWorkflowInstruction(value.ai_reference_package, false),
+    requested_output_root: "work/AIReferencePackage"
+  };
+}
+
+export function normalizeJobInput(input, { allowIncompleteWorkflow = false } = {}) {
   if (!input || typeof input !== "object") throw new ValidationError("Request body is invalid.");
   const originalName = requireText(input.jobName, "jobName", { max: 255 });
   const name = sanitizeJobName(originalName);
@@ -143,6 +173,7 @@ export function normalizeJobInput(input) {
       OPTIONS.outputs,
       "deliverables"
     ),
+    referenceWorkflow: normalizeReferenceWorkflow(input.referenceWorkflow, references.length, { allowIncomplete: allowIncompleteWorkflow }),
     referencePackage: validateReferencePackage(input.referencePackage, references.length),
     references
   };
@@ -163,6 +194,7 @@ export function buildManifest(job, storedReferences) {
     target: job.target,
     work_scope: job.workScope,
     deliverables: job.deliverables,
+    reference_workflow: job.referenceWorkflow,
     references: storedReferences.map((reference, index) => ({
       id: `REF-${String(index + 1).padStart(3, "0")}`,
       file: reference.relativePath,

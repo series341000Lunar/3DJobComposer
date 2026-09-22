@@ -1,0 +1,435 @@
+Create a clean multi-view concept sheet of a stylized, strongly deformed low-poly historical tank.
+
+VEHICLE:
+[ VEHICLE NAME ]
+
+The specified vehicle must remain immediately recognizable as that exact tank model or variant.
+
+Preserve its characteristic:
+
+* hull architecture
+* turret architecture
+* gun and mantlet
+* suspension type
+* road-wheel arrangement
+* drive sprocket and idler arrangement
+* track structure
+* major hatches
+* engine deck
+* front and rear armor forms
+* major external equipment
+* characteristic national and period silhouette
+
+Do not accidentally convert the vehicle into another model, another variant, or a generic tank.
+
+==================================================
+PRIMARY STYLIZATION RULE
+========================
+
+Apply a deliberate and clearly visible compact deformation.
+
+THE MOST IMPORTANT RULE IS:
+
+STRONGLY COMPRESS THE VEHICLE ALONG ITS FRONT-TO-BACK / LONGITUDINAL AXIS.
+
+The vehicle must look as if the original historical tank has been physically compressed from front to rear.
+
+The deformation should be immediately readable as:
+
+SHORT
++
+STUBBY
++
+CHUNKY
++
+COMPACT
++
+RELATIVELY WIDE
+
+It must NOT look like a normally proportioned tank that has simply been scaled smaller.
+
+==================================================
+LONGITUDINAL COMPRESSION
+========================
+
+Significantly shorten:
+
+* overall hull length
+* wheelbase
+* longitudinal spacing between suspension units
+* distance between front armor, turret, engine deck, and rear armor
+* unnecessary empty space along the vehicle length
+
+The shortened hull must be obvious in both the HERO and SIDE views.
+
+Target approximately the visual impression of a vehicle whose hull has been compressed to roughly:
+
+70–80% of its normal apparent front-to-back proportion,
+
+while preserving most of its original apparent width.
+
+This is a visual stylization target, not an engineering dimension.
+
+==================================================
+WHAT SHOULD NOT SHRINK EQUALLY
+==============================
+
+Do NOT uniformly scale all dimensions.
+
+Keep relatively substantial:
+
+* hull width
+* track width
+* turret size
+* gun caliber impression
+* suspension wheel diameter
+* sprocket size
+* idler size
+* major hatches
+* characteristic armor structures
+
+The width-to-length ratio should become noticeably larger than on the real vehicle.
+
+The tank should therefore feel:
+
+WIDER FOR ITS LENGTH
+and
+SHORTER FOR ITS WIDTH.
+
+==================================================
+TURRET / GUN PROPORTION
+=======================
+
+Keep the turret visually prominent.
+
+The turret may become slightly oversized relative to the shortened hull because the hull is being compressed more strongly than the turret.
+
+Do NOT excessively shrink the turret to match the hull compression.
+
+The gun should preserve its characteristic visual length and caliber impression.
+
+A relatively long gun projecting from a very short hull is acceptable and often desirable.
+
+This contrast reinforces the compact stylization.
+
+==================================================
+SUSPENSION / RUNNING GEAR
+=========================
+
+Preserve the original suspension TYPE and mechanical identity.
+
+Preserve the characteristic:
+
+* number and grouping of major road wheels
+* bogie arrangement
+* interleaved / overlapping wheel language where historically applicable
+* return roller arrangement where visually important
+* sprocket location
+* idler location
+* track routing
+
+Unless an explicit vehicle-specific instruction says otherwise:
+
+DO NOT REMOVE ROAD WHEELS OR SUSPENSION UNITS JUST TO MAKE THE TANK SHORTER.
+
+Instead:
+
+* reduce spacing between repeated components
+* compress the running gear longitudinally
+* slightly enlarge important wheels where useful
+* simplify mechanical geometry
+* exaggerate large readable suspension forms
+
+The tracks should occupy a large portion of the side silhouette.
+
+The running gear should feel chunky and mechanically readable.
+
+==================================================
+TARGET SILHOUETTE
+=================
+
+The vehicle should read as:
+
+REAL HISTORICAL TANK
+→ compressed front-to-back
+→ large original identity cues preserved
+→ simplified mechanical construction
+→ chunky low-poly game asset
+
+The result should be more strongly deformed than a realistic scale model.
+
+However, do not push the design into super-deformed cartoon territory.
+
+Vehicle identity must remain stronger than the caricature.
+
+==================================================
+LOW-POLY DESIGN LANGUAGE
+========================
+
+Use clean, deliberately simplified low-poly geometry.
+
+Prioritize:
+
+* large primary armor volumes
+* clear silhouette
+* planar surfaces
+* readable turret geometry
+* clear hull / turret / gun separation
+* large readable wheels
+* simplified but understandable tracks
+* large recognizable mechanical structures
+* controlled bevels
+
+Simplify:
+
+* bolts
+* handles
+* hinges
+* tools
+* track links
+* grilles
+* weld lines
+* cables
+* brackets
+* small fittings
+
+Remove insignificant micro-detail.
+
+Avoid dense realistic geometry.
+
+The design should look practical to reproduce as a real-time 3D game asset.
+
+==================================================
+MATERIAL / TEXTURE
+==================
+
+Use an extremely simple grayscale presentation.
+
+MATERIAL:
+
+* grayscale diffuse only
+* subtle grayscale value separation
+* very light ambient occlusion
+* non-metallic appearance
+* high roughness
+* nearly matte
+* minimal specular response
+
+NO:
+
+* realistic PBR surface treatment
+* metallic reflections
+* camouflage
+* complex textures
+* rust
+* mud
+* dirt
+* scratches
+* chipped paint
+* heavy weathering
+* procedural noise
+
+Most visual information must come from:
+
+GEOMETRY
++
+SILHOUETTE
++
+GRAYSCALE VALUE
++
+SOFT SHADOW
++
+SUBTLE AO
+
+Optional simple historical markings may be used sparingly.
+
+==================================================
+HERO VIEW
+=========
+
+The primary panel should contain a large front 3/4 isometric HERO view.
+
+Camera:
+
+* slightly elevated
+* approximately orthographic or long-lens appearance
+* minimal perspective distortion
+* entire vehicle visible
+
+The compact longitudinal deformation must be clearly visible.
+
+The hero view must emphasize:
+
+* short hull
+* wide stance
+* large turret
+* large running gear
+* characteristic gun
+* recognizable vehicle identity
+
+Avoid cinematic wide-angle distortion.
+
+==================================================
+REFERENCE VIEWS
+===============
+
+Include consistent views of exactly the same design:
+
+1. FRONT
+2. SIDE
+3. REAR
+4. TOP
+5. FRONT 3/4
+6. REAR 3/4
+
+The SIDE view is critically important.
+
+The SIDE view must clearly communicate:
+
+* shortened overall length
+* compressed wheelbase
+* compressed suspension spacing
+* stocky hull proportion
+* preserved suspension identity
+* turret-to-hull proportion
+* gun length relative to compact hull
+
+All panels must depict the same model.
+
+Do not redesign or change proportions between views.
+
+==================================================
+MODEL CONSISTENCY
+=================
+
+Treat the large HERO model as the authoritative design.
+
+All other panels must explain that same design.
+
+Keep consistent:
+
+* road-wheel count
+* suspension grouping
+* sprocket location
+* idler location
+* turret dimensions
+* hull dimensions
+* track width
+* gun length
+* gun mantlet
+* hatch positions
+* engine-deck layout
+* external fittings
+* panel boundaries
+* repeated component placement
+
+Occlusion may hide components.
+
+It must never create or delete components between views.
+
+==================================================
+DETAIL REFERENCES
+=================
+
+Include useful close-ups selected from:
+
+* suspension / bogie
+* road wheels
+* drive sprocket
+* idler
+* track
+* gun mantlet
+* turret front
+* turret side
+* commander hatch / cupola
+* engine deck
+* rear hull
+* characteristic armor structure
+* distinctive external equipment
+
+Detail panels must show the SAME geometry.
+
+Do not invent finer or contradictory details only in close-up panels.
+
+==================================================
+REFERENCE-SHEET PRESENTATION
+============================
+
+Present everything as a professional 3D modeling reference / game-asset concept sheet.
+
+Use:
+
+* structured grid layout
+* generous spacing
+* neutral gray or dark-gray background
+* consistent illumination
+* consistent scale
+* minimal labels
+* low visual clutter
+
+No environment.
+No characters.
+No battlefield.
+No explosions.
+No cinematic effects.
+
+==================================================
+LIGHTING
+========
+
+Use simple studio-style illumination.
+
+* large soft key
+* weak fill
+* subtle contact shadow
+* subtle AO
+* neutral color temperature
+* no strong rim light
+* no colored light
+* no glossy highlights
+
+Lighting should explain geometry rather than dramatize it.
+
+==================================================
+PRIORITY ORDER
+==============
+
+1. Exact vehicle identity
+2. Strong longitudinal compression
+3. Short, stubby, chunky silhouette
+4. Large width-to-length ratio
+5. Preservation of suspension identity
+6. Large readable turret and running gear
+7. Clean low-poly geometry
+8. Grayscale diffuse + subtle AO
+9. Consistent multi-view reference
+10. Practical modeling readability
+
+==================================================
+FINAL VISUAL TARGET
+===================
+
+A recognizable historical tank transformed into a deliberately shortened and chunky low-poly game vehicle.
+
+The vehicle should look as though the REAL TANK itself was compressed along its longitudinal axis.
+
+It must NOT look like a realistic scale model simply rendered smaller.
+
+The defining impression should be:
+
+SAME TANK
++
+SAME MECHANICAL IDENTITY
++
+MUCH SHORTER HULL
++
+MUCH SHORTER WHEELBASE
++
+SUBSTANTIAL WIDTH
++
+LARGE READABLE RUNNING GEAR
++
+PROMINENT TURRET
+================
+
+COMPACT STYLIZED GAME TANK.
