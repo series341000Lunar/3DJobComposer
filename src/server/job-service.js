@@ -1,7 +1,9 @@
 import { constants as fsConstants } from "node:fs";
-import { access, copyFile, mkdir, readFile, readdir, rename, rm, writeFile } from "node:fs/promises";
+import { access, mkdir, readFile, readdir, rename, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 import crypto from "node:crypto";
+import { commitSave, recoveryStatus } from "./save-transaction.js";
+import { isDeepStrictEqual } from "node:util";
 import { OPTIONS } from "./constants.js";
 import { buildManifest, normalizeJobInput, ValidationError } from "./job-schema.js";
 import { renderTask } from "./task-renderer.js";
@@ -61,31 +63,8 @@ function resolveExistingReference(jobPath, relativeFile) {
   return { resolved, relativePath: path.relative(jobPath, resolved).split(path.sep).join("/") };
 }
 
-async function nextReferenceFilename(referenceDirectory, originalName) {
-  const extension = referenceExtension(originalName);
-  const entries = new Set(await readdir(referenceDirectory).catch(() => []));
-  for (let number = 1; number <= 9_999; number += 1) {
-    const filename = `ref_${String(number).padStart(3, "0")}${extension}`;
-    if (!entries.has(filename)) return filename;
-  }
-  return `ref_${crypto.randomUUID()}${extension}`;
-}
-
 function storedReference(reference, relativePath) {
   return { originalName: reference.originalName, mimeType: reference.mimeType, roles: reference.roles, note: reference.note, relativePath };
-}
-
-async function ensureRunLog(jobPath) {
-  const runLogPath = path.join(jobPath, "RUN_LOG.md");
-  if (await exists(runLogPath)) return false;
-  const template = await readFile(RUN_LOG_TEMPLATE_URL, "utf8");
-  try {
-    await writeFile(runLogPath, template, { encoding: "utf8", flag: "wx" });
-    return true;
-  } catch (error) {
-    if (error.code === "EEXIST") return false;
-    throw error;
-  }
 }
 
 export async function createJob(rawInput) {
@@ -135,21 +114,24 @@ function allowedList(value, allowed, fallback, warnings, label) {
   if (!Array.isArray(value)) return fallback;
   const result = [...new Set(value.filter((item) => allowed.includes(item)))];
   if (result.length !== value.length) warnings.push(`${label} contained unsupported values that were not restored.`);
-  return result.length ? result : fallback;
+  return result;
 }
 
 export async function loadJob(jobPathInput) {
   const jobPath = assertAbsolutePath(jobPathInput, "Job path");
+  const recovery = await recoveryStatus(jobPath);
   const manifestPath = path.join(jobPath, "manifest.json");
-  if (!(await exists(manifestPath))) throw new JobLoadError(`manifest.json was not found in: ${jobPath}`);
+  if (!(await exists(manifestPath))) throw Object.assign(new JobLoadError(recovery?.message || `manifest.json was not found in: ${jobPath}`), { recovery });
   let manifest;
-  try { manifest = JSON.parse(await readFile(manifestPath, "utf8")); } catch (error) { throw new JobLoadError(`manifest.json could not be read: ${error.message}`); }
+  try { manifest = JSON.parse(await readFile(manifestPath, "utf8")); } catch (error) { throw Object.assign(new JobLoadError(`${recovery?.message || "manifest.json could not be read:"} ${error.message}`), { recovery }); }
 
   const warnings = [];
+  const unsupportedSchema = !["1.0", "1.1"].includes(String(manifest.schema_version));
+  if (recovery) warnings.push(recovery.message);
   if (!(await exists(path.join(jobPath, "TASK.md")))) warnings.push("TASK.md is missing. It will be regenerated when the Job is saved.");
   if (!(await exists(path.join(jobPath, "references")))) warnings.push("references/ is missing. It will be recreated when the Job is saved.");
   if (!(await exists(path.join(jobPath, "RUN_LOG.md")))) warnings.push("RUN_LOG.md is missing. An empty template will be added when the Job is saved.");
-  if (!["1.0", "1.1"].includes(String(manifest.schema_version))) warnings.push(`Schema ${manifest.schema_version ?? "unknown"} is not explicitly supported; compatible fields were restored where possible.`);
+  if (!["1.0", "1.1"].includes(String(manifest.schema_version))) warnings.push(`Schema ${manifest.schema_version ?? "unknown"} is not explicitly supported; saving is disabled to prevent unsupported data loss (supported schema: 1.1).`);
 
   const manifestReferences = Array.isArray(manifest.references) ? manifest.references : [];
   const idMap = new Map();
@@ -202,6 +184,9 @@ export async function loadJob(jobPathInput) {
   const legacyOutputs = manifest.target?.outputs;
   return {
     jobPath,
+    readOnly: unsupportedSchema || Boolean(recovery),
+    schemaVersion: manifest.schema_version,
+    recovery,
     warnings,
     job: {
       jobName: manifest.job?.name || path.basename(jobPath),
@@ -226,39 +211,75 @@ export async function loadJob(jobPathInput) {
   };
 }
 
+// Apply only changes relative to the editable projection. Preserve unchanged
+// absent/null values and extension metadata in the canonical document.
+function preserveUnedited(original, baseline, edited) {
+  if (isDeepStrictEqual(baseline, edited)) return original;
+  if (edited && baseline && typeof edited === "object" && !Array.isArray(edited)
+      && typeof baseline === "object" && !Array.isArray(baseline)) {
+    const result = { ...(original && typeof original === "object" ? original : {}) };
+    for (const key of Object.keys(edited)) {
+      if (!isDeepStrictEqual(baseline[key], edited[key])) {
+        result[key] = preserveUnedited(original?.[key], baseline[key], edited[key]);
+      }
+    }
+    return result;
+  }
+  return edited;
+}
+
 export async function saveJob(jobPathInput, rawInput) {
   const jobPath = assertAbsolutePath(jobPathInput, "Loaded Job path");
-  if (!(await exists(path.join(jobPath, "manifest.json")))) throw new JobLoadError("The loaded Job no longer contains manifest.json.");
+  const pending = await recoveryStatus(jobPath);
+  if (pending) throw Object.assign(new Error(pending.message), { statusCode: 409, recovery: pending });
+  const original = JSON.parse(await readFile(path.join(jobPath, "manifest.json"), "utf8"));
+  if (!["1.0", "1.1"].includes(String(original.schema_version))) {
+    throw Object.assign(new Error(`Schema ${original.schema_version ?? "unknown"} is read-only; supported schema is 1.1.`), { statusCode: 409 });
+  }
+  const loaded = await loadJob(jobPath);
   const job = normalizeJobInput(rawInput);
-  if (job.name.toLowerCase() !== path.basename(jobPath).toLowerCase()) throw new ValidationError("A loaded Job cannot be renamed during SAVE JOB.", "jobName");
-
+  if (job.name.toLowerCase() !== path.basename(jobPath).toLowerCase()) throw new ValidationError("A loaded Job cannot be renamed during SAVE CHANGES.", "jobName");
   const referenceDirectory = path.join(jobPath, "references");
-  await mkdir(referenceDirectory, { recursive: true });
+  const reserved = new Set(await readdir(referenceDirectory).catch((error) => {
+    if (error.code === "ENOENT") return [];
+    throw error;
+  }));
   const storedReferences = [];
+  const additions = [];
   for (const reference of job.references) {
     if (reference.existingFile) {
       const resolved = resolveExistingReference(jobPath, reference.existingFile);
       if (!(await exists(resolved.resolved)) && !reference.missing) throw new ValidationError(`Existing reference is missing: ${resolved.relativePath}`, "references");
       storedReferences.push(storedReference(reference, resolved.relativePath));
     } else {
-      const filename = await nextReferenceFilename(referenceDirectory, reference.originalName);
+      const extension = referenceExtension(reference.originalName);
+      let number = 1;
+      while (reserved.has(`ref_${String(number).padStart(3, "0")}${extension}`)) number++;
+      const filename = `ref_${String(number).padStart(3, "0")}${extension}`;
+      reserved.add(filename);
       const relativePath = `references/${filename}`;
-      await writeFile(path.join(referenceDirectory, filename), decodeReference(reference.dataBase64), { flag: "wx" });
+      additions.push({ file: relativePath, bytes: decodeReference(reference.dataBase64) });
       storedReferences.push(storedReference(reference, relativePath));
     }
   }
-
-  const manifest = buildManifest(job, storedReferences);
-  const task = renderTask(job, storedReferences);
-  const nonce = crypto.randomBytes(6).toString("hex");
-  const manifestTemp = path.join(jobPath, `.manifest.${nonce}.tmp`);
-  const taskTemp = path.join(jobPath, `.TASK.${nonce}.tmp`);
-  try {
-    await Promise.all([writeFile(manifestTemp, `${JSON.stringify(manifest, null, 2)}\n`, "utf8"), writeFile(taskTemp, task, "utf8")]);
-    await Promise.all([copyFile(manifestTemp, path.join(jobPath, "manifest.json")), copyFile(taskTemp, path.join(jobPath, "TASK.md"))]);
-  } finally {
-    await Promise.all([rm(manifestTemp, { force: true }), rm(taskTemp, { force: true })]);
+  const baselineJob = normalizeJobInput(loaded.job);
+  const baselineRefs = loaded.job.references.map((ref) => storedReference(ref, ref.existingFile));
+  const baseline = buildManifest(baselineJob, baselineRefs);
+  const generated = buildManifest(job, storedReferences);
+  const manifest = preserveUnedited(original, baseline, generated);
+  if (String(original.schema_version) === "1.0") {
+    Object.assign(manifest, { schema_version: "1.1", work_scope: job.workScope,
+      deliverables: job.deliverables, reference_package: generated.reference_package });
   }
-  await ensureRunLog(jobPath);
-  return { jobPath, jobName: job.name, manifest };
+  const entries = [
+    { file: "manifest.json", bytes: Buffer.from(`${JSON.stringify(manifest, null, 2)}\n`) },
+    { file: "TASK.md", bytes: Buffer.from(renderTask(job, storedReferences)) },
+    ...additions
+  ];
+  if (!(await exists(path.join(jobPath, "RUN_LOG.md")))) {
+    entries.push({ file: "RUN_LOG.md", bytes: await readFile(RUN_LOG_TEMPLATE_URL) });
+  }
+  const recovery = await commitSave(jobPath, entries);
+  return { jobPath, jobName: job.name, manifest, recovery,
+    references: storedReferences.map((ref) => ({ existingFile: ref.relativePath })) };
 }

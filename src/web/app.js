@@ -1,5 +1,6 @@
 const state = {
   config: null,
+  readOnly: false,
   references: [],
   aiItems: [],
   mode: "new",
@@ -227,17 +228,19 @@ function showStatus(type, message, openToken = null) {
 
 function setMode(mode, result = null) {
   state.mode = mode;
+  state.readOnly = result?.readOnly === true;
+  byId("create-button").disabled = state.readOnly;
   const editing = mode === "editing";
-  byId("mode-badge").textContent = editing ? "EDITING" : "NEW JOB";
+  byId("mode-badge").textContent = state.readOnly ? "READ ONLY" : editing ? "EDITING" : "NEW JOB";
   byId("mode-badge").classList.toggle("editing", editing);
-  byId("mode-title").textContent = editing ? "Current Mode: Editing Existing Job" : "Current Mode: New Job";
+  byId("mode-title").textContent = state.readOnly ? "Current Mode: Read-only Job" : editing ? "Current Mode: Editing Existing Job" : "Current Mode: New Job";
   byId("loaded-job-label").textContent = editing ? `Loaded Job: ${state.loadedJobPath}` : "Create a new package without overwriting an existing Job.";
   byId("new-job-button").hidden = !editing;
   byId("job-name").readOnly = editing;
   byId("root-path").readOnly = editing;
-  byId("create-button").textContent = editing ? "SAVE JOB" : "CREATE JOB";
+  byId("create-button").textContent = editing ? "SAVE CHANGES" : "CREATE JOB";
   byId("create-section-title").textContent = editing ? "Save loaded package" : "Create package";
-  byId("create-section-help").textContent = editing ? "Only the explicitly loaded Job can be overwritten." : "Choose an absolute Windows folder path.";
+  byId("create-section-help").textContent = state.readOnly ? "Inspection only. Saving is disabled to protect this Job." : editing ? "Only the explicitly loaded Job can be overwritten." : "Choose an absolute Windows folder path.";
   if (result?.warnings?.length) {
     byId("load-warnings").hidden = false;
     byId("load-warnings").textContent = `Warnings:\n- ${result.warnings.join("\n- ")}`;
@@ -281,7 +284,7 @@ function applyLoadedJob(result) {
   byId("ai-package-details").hidden = !job.referencePackage.enabled;
   updateReferenceOrder();
   setMode("editing", result);
-  showStatus("success", `Job loaded for editing.\n\n${result.jobPath}`, result.openToken);
+  showStatus("success", `Job loaded.\n\n${result.jobPath}`, result.openToken);
 }
 
 async function loadExistingJob() {
@@ -348,12 +351,16 @@ async function buildPayload() {
 
 async function submit(event) {
   event.preventDefault();
+  if (state.readOnly) return showStatus("error", "This Job is read-only. Saving is disabled.");
   const button = byId("create-button");
   if (!sanitizedPreview(byId("job-name").value)) return showStatus("error", "Job Name must contain at least one safe character.");
   const invalidPart = state.aiItems.find((item) => item.scope === "Specific Part" && !item.targetPart.trim());
   if (invalidPart) return showStatus("error", "Target Part Name is required for every Specific Part package item.");
 
   button.disabled = true;
+  byId("job-form").inert = true;
+  byId("load-job-button").disabled = true;
+  byId("new-job-button").disabled = true;
   button.textContent = state.mode === "editing" ? "SAVING…" : "CREATING…";
   showStatus("success", state.mode === "editing" ? "Saving the loaded Job…" : "Preparing reference files and creating the package…");
   try {
@@ -365,14 +372,31 @@ async function submit(event) {
       body: JSON.stringify(editing ? { editToken: state.editToken, job: payload } : payload)
     });
     const result = await response.json();
-    if (!response.ok) throw new Error(result.error || `Could not ${editing ? "save" : "create"} the Job.`);
+    if (!response.ok) {
+      if (result.recovery?.state === "recovery_required") setMode(state.mode, { readOnly: true, warnings: [result.error] });
+      throw new Error(result.error || `Could not ${editing ? "save" : "create"} the Job.`);
+    }
+    if (editing) {
+      state.references.forEach((reference, index) => {
+        reference.existingFile = result.references[index].existingFile;
+        reference.file = null;
+      });
+    }
     state.openToken = result.openToken;
+    if (result.recovery?.state === "committed_cleanup_required") {
+      state.readOnly = true;
+      showStatus("error", `Saved successfully, but recovery cleanup is required: ${result.recovery.recoveryPath}. Stop Composer and run the documented recovery command.`);
+      return;
+    }
     showStatus("success", `Job ${editing ? "saved" : "created"} successfully.\n\n${result.jobPath}`, result.openToken);
   } catch (error) {
     showStatus("error", error.message);
   } finally {
-    button.disabled = false;
-    button.textContent = state.mode === "editing" ? "SAVE JOB" : "CREATE JOB";
+    byId("job-form").inert = false;
+    byId("load-job-button").disabled = false;
+    byId("new-job-button").disabled = false;
+    button.disabled = state.readOnly;
+    button.textContent = state.mode === "editing" ? "SAVE CHANGES" : "CREATE JOB";
   }
 }
 

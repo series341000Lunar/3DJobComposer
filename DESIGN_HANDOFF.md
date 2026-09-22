@@ -116,7 +116,7 @@ AI Reference Package는 “추후 어떤 모델링 보조 이미지를 생성할
    └─ job-service.test.js
 ```
 
-현재 폴더는 Git 저장소가 아니다. Git history나 branch가 있다고 가정하지 말 것. `.tmp/`는 실행 로그용이며 인계 패키지에서 제외해도 된다.
+Git baseline이 설정되어 있다. 작업 전 현재 branch, HEAD, git status를 확인할 것. `.tmp/`는 실행 로그용이며 인계 패키지에서 제외해도 된다.
 
 ## 4. 모듈 책임
 
@@ -330,7 +330,7 @@ UI 변경 시 실제 브라우저에서 New Job 기본값, 기존 Job Load, SAVE
 - 제거된 Reference의 고아 파일 자동 정리 없음
 - 실제 ImageGen/3dAI/Codex 실행 없음
 - 정식 JSON Schema 파일과 schema migration CLI 없음
-- 프로젝트 자체 Git history 없음
+- Git baseline 이후 변경 상태는 git status와 HEAD로 확인
 
 ## 13. 권장 다음 단계
 
@@ -387,3 +387,17 @@ RUN_LOG.md는 실제 제작 작업자의 실행 기록입니다. 새 Job에는 �
 
 작업 전 node --test를 실행하고, 변경 후 전체 테스트와 실제 브라우저 UI를 검증하십시오. 실제 C:\_InternalProjects\3DJobs 아래 사용자 Job은 명시적 요청 없이 SAVE하거나 변경하지 마십시오.
 ```
+
+## 16. Phase 1 저장 안정화 (2026-09-22)
+
+- NEW의 CREATE는 기존 폴더를 거부한다. 명시적으로 LOAD한 Job은 서버 편집 토큰이 지정한 동일 폴더에 SAVE CHANGES할 수 있다.
+- SAVE는 새 내용을 staging/검증하고 이전 바이트와 checksum을 recovery journal에 보관한 뒤 반영한다. 실패하면 문서와 새 Reference를 원상 복구하고 검증한다. 복구 실패·중단은 경로와 상태를 명시하며 후속 SAVE를 차단한다.
+- 기존 RUN_LOG는 바이트 단위로 보존한다. 누락된 RUN_LOG 최초 생성도 같은 복구 대상에 포함한다. 기존 Reference 제거 시 디스크 파일을 삭제하지 않는다.
+- 성공 응답의 Reference 경로를 UI에 반영하여 변경 없는 반복 SAVE가 파일을 복제하지 않는다.
+- No-op Load→Save는 original_name, 명시적 빈 배열, 변경하지 않은 absent/null 상태와 추가 metadata를 보존한다.
+- 미지원/future schema는 경고와 읽기 전용으로 취급하며 편집 토큰을 발급하지 않는다. SAVE 직전 디스크 schema도 재검사한다. 알려진 1.0→1.1 호환은 유지한다.
+- 서버는 127.0.0.1에 바인딩한다. 실제 포트의 local Host, 허용 local Origin, application/json을 검사한 뒤 모든 POST를 처리한다. 스크립트 호출에도 Origin 헤더가 필요하다.
+- 복구 시 Composer 및 다른 작성자를 중지한 뒤 `node src/server/recover-save.js "<Job 절대경로>"`를 실행한다. backup이 들어 있는 `.composer-save-recovery`를 임의로 삭제하지 않는다. 상세 상태·절차는 README의 Phase 1 계약을 따른다.
+- 기존 9개 + 추가 21개 회귀 테스트. 추가 장애 주입은 `.tmp/phase1-*` 합성 fixture에만 수행한다. 선택적 실제 Edge 검증은 `tools/browser-phase1.mjs`를 사용한다.
+- F05 비활성 초안 정책과 F07 stale 편집 충돌 정책은 변경하지 않았다. 전원 장애/NAS 장치 내구성, 외부 작성자와의 동시 I/O는 보장하지 않는다.
+- Composer 0.2.1 / schema 1.1을 유지한다. 새 사용자 기능 또는 manifest 필드 추가는 없다.

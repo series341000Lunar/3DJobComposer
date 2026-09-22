@@ -8,7 +8,7 @@ import { OPTIONS, COMPOSER_VERSION, SCHEMA_VERSION } from "./constants.js";
 import { createJob, JobExistsError, JobLoadError, loadJob, saveJob } from "./job-service.js";
 import { ValidationError } from "./job-schema.js";
 
-const HOST = process.env.HOST || "127.0.0.1";
+const HOST = "127.0.0.1";
 const PORT = Number(process.env.PORT || 4173);
 const WEB_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../web");
 const openTokens = new Map();
@@ -64,6 +64,17 @@ async function serveStatic(request, response, url) {
 }
 
 async function handleRequest(request, response) {
+  const port = request.socket.localPort;
+  const allowedHosts = [`127.0.0.1:${port}`, `localhost:${port}`];
+  if (!allowedHosts.includes(request.headers.host)) return json(response, 403, { error: "Invalid local Host." });
+  if (request.method === "POST") {
+    if (!allowedHosts.map((host) => `http://${host}`).includes(request.headers.origin)) {
+      return json(response, 403, { error: "A trusted Composer Origin is required." });
+    }
+    if (request.headers["content-type"]?.split(";")[0].trim().toLowerCase() !== "application/json") {
+      return json(response, 415, { error: "Content-Type must be application/json." });
+    }
+  }
   const url = new URL(request.url, `http://${request.headers.host || `${HOST}:${PORT}`}`);
 
   if (request.method === "GET" && url.pathname === "/api/config") {
@@ -84,7 +95,7 @@ async function handleRequest(request, response) {
       json(response, 201, { ...result, manifest: undefined, openToken });
     } catch (error) {
       const status = error instanceof JobExistsError ? 409 : error instanceof ValidationError ? 400 : error.statusCode || 500;
-      json(response, status, { error: error.message, field: error.field });
+      json(response, status, { error: error.message, field: error.field, recovery: error.recovery });
     }
     return;
   }
@@ -95,12 +106,12 @@ async function handleRequest(request, response) {
       const result = await loadJob(jobPath);
       const editToken = crypto.randomUUID();
       const openToken = crypto.randomUUID();
-      editTokens.set(editToken, result.jobPath);
+      if (!result.readOnly) editTokens.set(editToken, result.jobPath);
       openTokens.set(openToken, result.jobPath);
-      json(response, 200, { ...result, editToken, openToken });
+      json(response, 200, { ...result, editToken: result.readOnly ? null : editToken, openToken });
     } catch (error) {
       const status = error instanceof JobLoadError ? 400 : error instanceof ValidationError ? 400 : error.statusCode || 500;
-      json(response, status, { error: error.message, field: error.field });
+      json(response, status, { error: error.message, field: error.field, recovery: error.recovery });
     }
     return;
   }
@@ -113,10 +124,10 @@ async function handleRequest(request, response) {
       const result = await saveJob(loadedJobPath, job);
       const openToken = crypto.randomUUID();
       openTokens.set(openToken, result.jobPath);
-      json(response, 200, { jobPath: result.jobPath, jobName: result.jobName, openToken });
+      json(response, 200, { ...result, manifest: undefined, openToken });
     } catch (error) {
       const status = error instanceof JobLoadError ? 400 : error instanceof ValidationError ? 400 : error.statusCode || 500;
-      json(response, status, { error: error.message, field: error.field });
+      json(response, status, { error: error.message, field: error.field, recovery: error.recovery });
     }
     return;
   }

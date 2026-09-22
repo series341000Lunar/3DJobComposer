@@ -49,7 +49,7 @@ Unsafe Windows filename characters, whitespace, trailing dots, and reserved devi
 Enter the existing Job folder path at the top of the page and select **LOAD JOB**. `manifest.json` is the canonical source; `TASK.md` is never parsed to reconstruct data. A loaded Job enters **Editing Existing Job** mode, displays its path, restores available reference previews, and reports missing files or unsupported values as warnings.
 
 - **CREATE JOB** is available in New Job mode and never overwrites an existing folder.
-- **SAVE JOB** is available only after an explicit successful load. The server issues an in-memory edit token for that exact folder, so an arbitrary folder cannot be overwritten through the save endpoint.
+- **SAVE CHANGES** is available only after an explicit successful load. The server issues an in-memory edit token for that exact folder, so an arbitrary folder cannot be overwritten through the save endpoint.
 - SAVE updates `manifest.json` and regenerates `TASK.md`. It adds newly selected reference files and reflects current UI order, roles, and notes.
 - `RUN_LOG.md` is never reset or overwritten by SAVE. Older Jobs without it receive a new empty template on their first save.
 - Removing a loaded Reference excludes it from the new manifest and TASK, but deliberately leaves its existing file on disk. This conservative V1.1 policy avoids accidental source-image loss.
@@ -132,3 +132,37 @@ Schema 1.0 manifests without `work_scope`, `deliverables`, or `reference_package
 ## Future improvements
 
 Likely next steps are a native folder picker, explicit drag-to-reorder controls, schema migration/validation tooling, package-item presets, and a separate ImageGen/Codex/3dAI execution layer that consumes the authored plan.
+
+## Phase 1 save and recovery contract
+
+- **NEW JOB / CREATE JOB** refuses an existing destination. **LOAD JOB / SAVE CHANGES** updates only the exact folder authorized by its server-side edit token.
+- After a successful save, the UI adopts the returned reference paths. Another unchanged save reuses those files. Removing an existing reference still leaves its source file on disk.
+- No-op saves preserve `job.original_name`, explicit empty lists, and unchanged absent/null values and extension metadata. Schema 1.0 still follows the supported migration to 1.1.
+- Unsupported schemas (including future versions) open for inspection where possible, with a warning and disabled save. The server does not grant an edit token and rechecks the on-disk schema before saving.
+- The server binds to `127.0.0.1`. All requests require a local Host with the actual server port. All POST endpoints require `Origin: http://127.0.0.1:<port>` or `http://localhost:<port>`, and `Content-Type: application/json`. Missing/null/external origins are rejected before reading the body or changing files. Local scripts must send these headers; this is a browser-origin boundary, not account authentication.
+
+SAVE stages and verifies all new contents and records the previous document bytes and checksums in `<Job>/.composer-save-recovery/journal.json` before changing final files. It commits manifest, TASK, new references, and a missing RUN_LOG template as one recoverable operation. Existing RUN_LOG and existing reference files are never overwritten. On a caught failure it restores and verifies the previous state, removes only this transaction's additions, and returns `recovery.state = rolled_back`.
+
+If rollback cannot finish, the response includes `recovery_required` and the recovery path. Further saves are blocked; LOAD shows a recovery warning (or an explicit recovery error if the manifest is unreadable). Do not delete the recovery folder. Stop Composer and other writers, then run from the project directory:
+
+```powershell
+node src/server/recover-save.js "<absolute affected Job folder>"
+```
+
+The recovery command verifies backups and restores the previous state. If all final writes were verified and the COMMITTED marker exists, it instead verifies the new state and finishes cleanup. A successful save whose cleanup failed returns `committed_cleanup_required`; the UI clearly reports that the data was saved and disables further saves until recovery cleanup. Reload after restarting Composer. If recovery reports an error, retain the folder and backups for inspection.
+
+This is a recoverable multi-file save, not a filesystem-wide atomic transaction. Process interruption is regression-tested. Power loss/NAS hardware durability and concurrent external writers are not guaranteed; full stale-edit conflict detection remains F07.
+
+### Phase 1 verification
+
+`node --test` runs the original 9 tests plus 21 Phase 1 regressions. New fixtures are isolated under ignored `.tmp/phase1-*`; actual user Jobs are never test fixtures.
+
+Optional real-browser smoke (Microsoft Edge installed; Playwright is a development-only tool):
+```powershell
+$browserTools = Join-Path $env:TEMP "3djc-phase1-browser-tools"
+npm install --prefix $browserTools --no-audit --no-fund playwright
+$env:PLAYWRIGHT_MODULE = Join-Path $browserTools "node_modules/playwright/index.mjs"
+node tools/browser-phase1.mjs
+```
+
+The smoke creates only synthetic Jobs in `.tmp/browser-phase1-*`, verifies create/load/edit/save/reload, repeated reference save, and future-schema read-only behavior, and records screenshots plus `result.json`. The known unrelated `favicon.ico` 404 is recorded separately from application JavaScript errors; it is not silently suppressed.
