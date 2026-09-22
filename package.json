@@ -1,0 +1,15 @@
+{
+  "name": "3d-job-composer",
+  "version": "0.2.1",
+  "private": true,
+  "description": "Local Windows tool for composing standardized 3D job packages",
+  "type": "module",
+  "scripts": {
+    "start": "node src/server/server.js",
+    "dev": "node --watch src/server/server.js",
+    "test": "node --test"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
