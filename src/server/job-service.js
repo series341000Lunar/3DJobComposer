@@ -64,7 +64,7 @@ function resolveExistingReference(jobPath, relativeFile) {
 }
 
 function storedReference(reference, relativePath) {
-  return { originalName: reference.originalName, mimeType: reference.mimeType, roles: reference.roles, note: reference.note, relativePath };
+  return { originalName: reference.originalName, mimeType: reference.mimeType, roles: reference.roles, note: reference.note, notePreset: reference.notePreset, relativePath };
 }
 
 export async function createJob(rawInput) {
@@ -160,7 +160,8 @@ export async function loadJob(jobPathInput) {
       existingFile: resolvedInfo.relativePath,
       missing,
       roles: allowedList(source.roles, OPTIONS.referenceRoles, [], warnings, `${source.id || newId} roles`),
-      note: typeof source.note === "string" ? source.note : ""
+      note: typeof source.note === "string" ? source.note : "",
+      notePreset: manifest.metadata?.reference_note_presets?.[source.file] ?? null
     });
   }
 
@@ -190,6 +191,7 @@ export async function loadJob(jobPathInput) {
     warnings,
     job: {
       jobName: manifest.job?.name || path.basename(jobPath),
+      descriptionPreset: manifest.metadata?.job_description_preset ?? null,
       description: typeof manifest.job?.description === "string" ? manifest.job.description : "",
       rootPath: path.dirname(jobPath),
       asset: {
@@ -218,14 +220,30 @@ function preserveUnedited(original, baseline, edited) {
   if (edited && baseline && typeof edited === "object" && !Array.isArray(edited)
       && typeof baseline === "object" && !Array.isArray(baseline)) {
     const result = { ...(original && typeof original === "object" ? original : {}) };
-    for (const key of Object.keys(edited)) {
+    for (const key of new Set([...Object.keys(baseline), ...Object.keys(edited)])) {
       if (!isDeepStrictEqual(baseline[key], edited[key])) {
-        result[key] = preserveUnedited(original?.[key], baseline[key], edited[key]);
+        if (!Object.hasOwn(edited, key)) delete result[key];
+        else result[key] = preserveUnedited(original?.[key], baseline[key], edited[key]);
       }
     }
     return result;
   }
   return edited;
+}
+
+
+// Older clients may omit optional provenance. Only an explicit null clears it.
+function restoreOmittedPresets(input, loaded) {
+  if (!input || typeof input !== "object") throw new ValidationError("Request body is invalid.");
+  return {
+    ...input,
+    descriptionPreset: Object.hasOwn(input, "descriptionPreset") ? input.descriptionPreset : loaded.descriptionPreset,
+    references: Array.isArray(input.references) ? input.references.map((reference) => reference && typeof reference === "object" ? ({
+      ...reference,
+      notePreset: Object.hasOwn(reference, "notePreset") ? reference.notePreset
+        : loaded.references.find((source) => source.existingFile === reference.existingFile)?.notePreset
+    }) : reference) : input.references
+  };
 }
 
 export async function saveJob(jobPathInput, rawInput) {
@@ -237,7 +255,7 @@ export async function saveJob(jobPathInput, rawInput) {
     throw Object.assign(new Error(`Schema ${original.schema_version ?? "unknown"} is read-only; supported schema is 1.1.`), { statusCode: 409 });
   }
   const loaded = await loadJob(jobPath);
-  const job = normalizeJobInput(rawInput);
+  const job = normalizeJobInput(restoreOmittedPresets(rawInput, loaded.job));
   if (job.name.toLowerCase() !== path.basename(jobPath).toLowerCase()) throw new ValidationError("A loaded Job cannot be renamed during SAVE CHANGES.", "jobName");
   const referenceDirectory = path.join(jobPath, "references");
   const reserved = new Set(await readdir(referenceDirectory).catch((error) => {
@@ -282,4 +300,22 @@ export async function saveJob(jobPathInput, rawInput) {
   const recovery = await commitSave(jobPath, entries);
   return { jobPath, jobName: job.name, manifest, recovery,
     references: storedReferences.map((ref) => ({ existingFile: ref.relativePath })) };
+}
+
+export async function saveJobAs(loadedJobPath, rawInput) {
+  const loaded = await loadJob(loadedJobPath);
+  if (loaded.readOnly) throw Object.assign(new Error("This Job is read-only; SAVE AS is disabled."), { statusCode: 409 });
+  rawInput = restoreOmittedPresets(rawInput, loaded.job);
+  normalizeJobInput(rawInput);
+  const references = [];
+  for (const reference of rawInput?.references || []) {
+    if (!reference.existingFile) { references.push(reference); continue; }
+    const source = loaded.job.references.find((item) => item.existingFile === reference.existingFile);
+    if (!source || source.missing || !source.dataBase64) {
+      throw new ValidationError("SAVE AS requires every retained reference file. Remove the missing reference or add its image again.", "references");
+    }
+    references.push({ ...reference, existingFile: null, missing: false, dataBase64: source.dataBase64 });
+  }
+  // createJob stages a fresh package; RUN_LOG/work/output from the source are not copied.
+  return createJob({ ...rawInput, references });
 }

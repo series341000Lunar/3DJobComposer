@@ -1,7 +1,7 @@
 # 3DJobComposer 설계 인계서
 
 작성 기준일: 2026-09-22  
-프로젝트 경로: `C:\_InternalProjects\3DJobComposer`  
+프로젝트 경로: `Z:\3DJobComposer`<br>
 현재 Composer 버전: `0.2.1`  
 현재 manifest schema: `1.1`
 
@@ -401,3 +401,16 @@ RUN_LOG.md는 실제 제작 작업자의 실행 기록입니다. 새 Job에는 �
 - 기존 9개 + 추가 21개 회귀 테스트. 추가 장애 주입은 `.tmp/phase1-*` 합성 fixture에만 수행한다. 선택적 실제 Edge 검증은 `tools/browser-phase1.mjs`를 사용한다.
 - F05 비활성 초안 정책과 F07 stale 편집 충돌 정책은 변경하지 않았다. 전원 장애/NAS 장치 내구성, 외부 작성자와의 동시 I/O는 보장하지 않는다.
 - Composer 0.2.1 / schema 1.1을 유지한다. 새 사용자 기능 또는 manifest 필드 추가는 없다.
+
+## 17. Phase 2 Daily UX / Preset Foundation / Save As
+
+- CREATE JOB은 신규 draft 생성이다. SAVE CHANGES는 **덮어쓰시겠습니까?** 확인 후 기존 Phase 1 경로로 Loaded Job을 갱신한다. 취소 시 HTTP·파일·편집 상태를 변경하지 않는다.
+- Loaded 상태에서 Job Name / Job Root를 수정할 수 있다. 이 값은 SAVE AS 대상이며 SAVE CHANGES는 상단에 표시된 원래 Loaded 폴더에 저장한다.
+- SAVE AS는 **새로 저장하시겠습니까?** 확인 후 authoring fields와 Reference 바이트만 새 Job으로 생성한다. 충돌은 거부하고 suffix를 자동 추가하지 않는다. RUN_LOG는 새 템플릿, work/output은 빈 폴더다. 성공 시 새 Job의 편집 토큰으로 전환한다.
+- SAVE AS는 누락 Reference가 있으면 복사할 바이트가 없음을 알리고 거부한다. 사용자가 파일을 복원/재추가하거나 해당 Reference를 제거해야 한다. Future schema / recovery 대기 Job의 Save As도 차단한다.
+- Destination Preset은 저장/선택/삭제를 지원한다. `%LOCALAPPDATA%\3DJobComposer\settings.local.json`의 머신·사용자별 설정으로 보관하며 manifest 및 Save As 패키지에는 넣지 않는다. 존재하지 않는 경로도 등록할 수 있다. 설정 파일이 손상되어도 초기화·덮어쓰지 않는다.
+- PromptPreset의 canonical category는 `jobDescription`, `Referenceimage`, `AIreferencePackage`, `GenerateMasterReference`다. 기존 Windows 폴더의 대소문자는 보존하여 탐색한다. missing/empty는 정상이며 .md/.txt 전체 UTF-8 원문과 정확한 파일명을 사용한다.
+- Description 및 Reference Note 옆 dropdown/APPLY를 사용한다. 선택만으로 적용하지 않으며 기존 텍스트 교체에는 확인을 받는다. Note 적용은 다른 Reference나 Role을 바꾸지 않는다. Refresh Presets는 목록/내용만 새로 읽는다.
+- Snapshot은 schema 1.1의 선택적 `metadata.job_description_preset` 및 `metadata.reference_note_presets[reference_file]`에 `file`과 `resolved_content`로 저장한다. 수동 편집 후에도 적용 당시 원문은 유지한다. 구형 요청의 metadata 생략은 삭제로 취급하지 않는다. 상세 JSON 계약은 README 참조.
+- Composer 0.2.1 / schema 1.1 유지. 기존 30개 + Phase 2 회귀 19개, 실제 Edge 취소·Save As·프리셋 smoke를 실행한다. `tools/browser-phase2.mjs`의 settings/Job/preset fixture는 모두 .tmp 내부에 격리한다.
+- AIreferencePackage / GenerateMasterReference는 discovery만 제공한다. Reference Workflow mode, Generate Master workflow, AIreferencePackage workflow, Codex-side GPT Image execution contract는 Phase 3 범위로 남긴다.

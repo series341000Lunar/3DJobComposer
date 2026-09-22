@@ -1,0 +1,317 @@
+Create a clean multi-view concept sheet of a stylized, deformed low-poly WWII-era tank.
+
+VEHICLE:
+[ VEHICLE NAME ]
+
+The specified vehicle must remain clearly recognizable as that exact tank model or variant.
+
+Preserve its characteristic:
+- hull shape
+- turret shape
+- gun and mantlet design
+- suspension type
+- road-wheel arrangement
+- track structure
+- major hatches
+- engine deck
+- front and rear armor forms
+- major external equipment
+
+Do not accidentally convert it into another vehicle or another variant.
+
+==================================================
+STYLIZATION / PROPORTION
+==================================================
+
+Apply a deliberate compact deformation to the vehicle.
+
+Most importantly:
+
+COMPRESS THE VEHICLE IN THE FRONT-TO-BACK DIRECTION.
+
+Shorten the overall hull length and wheelbase so the vehicle becomes noticeably shorter, stockier, and more compact than the real vehicle.
+
+The deformation should read immediately as:
+
+SHORT + CHUNKY + COMPACT
+
+rather than simply as a small realistic tank.
+
+Keep the vehicle width relatively substantial so the shortened length creates a strong squat silhouette.
+
+The deformation should primarily affect longitudinal proportions.
+
+Do not excessively shrink:
+- turret size
+- hull width
+- track width
+- gun caliber impression
+
+The main gun may retain approximately its characteristic visual length so that it contrasts clearly with the shortened hull.
+
+Preserve the original suspension TYPE and recognizable wheel arrangement unless a separate vehicle-specific instruction explicitly requests otherwise.
+
+Do not arbitrarily remove road wheels, bogies, return rollers, or suspension units simply to shorten the vehicle.
+
+Instead:
+- reduce spacing where visually appropriate
+- compress the longitudinal layout
+- simplify geometry
+- slightly exaggerate important components
+
+while retaining the mechanical identity of the original vehicle.
+
+Target impression:
+
+REAL VEHICLE
+→ compressed along longitudinal axis
+→ simplified
+→ chunky low-poly game asset
+
+The result should have a stronger deformation than a realistic scale model, but should not become a toy or super-deformed caricature that loses vehicle identity.
+
+==================================================
+LOW-POLY DESIGN LANGUAGE
+==================================================
+
+Use a clean, deliberately simplified low-poly design.
+
+Prioritize:
+- large primary forms
+- clear silhouette
+- planar armor surfaces
+- simplified mechanical components
+- readable suspension
+- clean turret geometry
+- strong separation between hull, turret, gun, and running gear
+
+Use controlled bevels only where needed for readability.
+
+Simplify:
+- bolts
+- handles
+- hinges
+- track links
+- grilles
+- tools
+- small fittings
+
+Remove insignificant micro-detail.
+
+Do not create dense realistic geometry.
+
+The design should look practical to reproduce as an actual real-time 3D game asset.
+
+==================================================
+MATERIAL / TEXTURE
+==================================================
+
+Use an extremely simple grayscale material presentation.
+
+MATERIAL:
+- grayscale diffuse only
+- subtle value variation if necessary
+- very light ambient occlusion
+- non-metallic
+- high roughness
+- nearly matte
+- very low specular response
+
+NO:
+- realistic PBR surface treatment
+- metallic reflections
+- camouflage
+- complex textures
+- rust
+- mud
+- dirt layers
+- scratches
+- chipped paint
+- heavy weathering
+- procedural surface noise
+
+The visual information should come almost entirely from geometry, grayscale diffuse values, soft shadows, and subtle AO.
+
+Optional simple identification markings such as a plain white star may be used when appropriate, but keep them minimal.
+
+==================================================
+HERO ISOMETRIC VIEW
+==================================================
+
+The primary image on the sheet should be a large isometric / front 3/4 hero view.
+
+Camera:
+- slightly elevated
+- approximately isometric
+- minimal perspective distortion
+- full vehicle visible
+- clear visibility of turret, hull, tracks, and suspension
+
+The shortened front-to-back proportion must be especially obvious in this hero view.
+
+Do not use cinematic wide-angle distortion.
+
+==================================================
+REFERENCE VIEWS
+==================================================
+
+Include consistent reference views of the exact same design:
+
+1. FRONT
+2. SIDE
+3. REAR
+4. FRONT 3/4
+5. REAR 3/4
+
+The SIDE view is especially important.
+
+It must clearly demonstrate:
+- compressed vehicle length
+- shortened wheelbase
+- stocky proportions
+- original suspension identity
+- consistent deformation
+
+All views must show exactly the same vehicle proportions and components.
+
+Do not regenerate slightly different variants in each panel.
+
+==================================================
+DETAIL REFERENCES
+==================================================
+
+Include several useful detail panels appropriate to the specified vehicle.
+
+Prioritize mechanically distinctive features such as:
+
+- suspension / road-wheel assembly
+- track and sprocket
+- idler
+- gun mantlet
+- turret roof
+- commander hatch
+- engine deck
+- rear hull
+- turret machine gun
+- distinctive armor structures
+
+Choose only useful modeling references.
+
+Do not overcrowd the sheet.
+
+==================================================
+REFERENCE SHEET PRESENTATION
+==================================================
+
+Present everything as a professional 3D modeling reference / game asset concept sheet.
+
+Use:
+- clean structured layout
+- consistent model scale
+- consistent lighting
+- generous spacing
+- neutral background
+- subtle grid if useful
+- minimal technical labels
+
+Background:
+neutral light gray, medium gray, or dark gray.
+
+No battlefield scene.
+No characters.
+No dramatic environment.
+No explosions.
+No cinematic effects.
+
+==================================================
+LIGHTING
+==================================================
+
+Use simple natural / studio-like illumination.
+
+- large soft key light
+- weak fill
+- subtle contact shadow
+- subtle ambient occlusion
+- neutral color temperature
+- no dramatic rim light
+- no colored lighting
+- no glossy highlights
+
+Lighting exists only to explain the geometry clearly.
+
+==================================================
+LABELS
+==================================================
+
+If labels are used, limit them to simple reference terminology:
+
+ISOMETRIC
+FRONT
+SIDE
+REAR
+FRONT 3/4
+REAR 3/4
+DETAIL
+
+Do not invent dimensions or technical specifications.
+
+==================================================
+PRIORITY ORDER
+==================================================
+
+1. Correct identity of the specified vehicle
+2. Strong front-to-back length compression
+3. Short, stocky, compact silhouette
+4. Preservation of the original suspension type and mechanical identity
+5. Clean low-poly geometry
+6. Grayscale diffuse + subtle AO only
+7. Large readable isometric hero view
+8. Consistent multi-view reference
+9. Useful modeling detail panels
+10. Very low visual noise
+
+FINAL VISUAL TARGET:
+
+A recognizable historical tank transformed into a compact, shortened, chunky low-poly game vehicle.
+
+It should look as if the original vehicle has been intentionally compressed along its longitudinal axis while keeping its defining mechanical features intact.
+
+
+==================================================
+DESIGN CONSISTENCY / MODELING READABILITY
+==================================================
+Establish one coherent stylized design and depict that same design
+throughout the entire sheet.
+
+Treat the large hero view as the primary design view.
+Other views must explain that design, not reinterpret or redesign it.
+
+Keep the following consistent across all views:
+- primary proportions and silhouette
+- number, order, and placement of repeated components
+- component sizes and attachment points
+- panel boundaries and major openings
+- pose and orientation of movable parts
+
+Repeated components may be hidden by occlusion, but must not be
+added, removed, or rearranged between views.
+
+Use orthographic or near-orthographic projection for FRONT, SIDE,
+REAR, and TOP views. Avoid perspective distortion in these views.
+
+Include a TOP view when it reveals important structure that is
+unclear in the other views.
+
+Detail panels must be close-ups of the same design.
+Do not introduce additional parts or finer detail only in close-ups.
+
+Preserve readable gaps, plausible attachments, and clear separation
+between components. Keep circular parts circular unless their
+deformation is an intentional feature of the design.
+
+Prefer fewer, larger, consistent panels over many small,
+contradictory panels.
+
+Do not claim engineering accuracy, verified dimensions, or
+game-ready topology based on the concept image alone.

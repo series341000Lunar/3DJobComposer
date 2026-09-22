@@ -49,6 +49,16 @@ function requireText(value, field, { allowEmpty = false, max = 100_000 } = {}) {
   return value;
 }
 
+function validatePreset(value) {
+  if (value == null) return null;
+  if (typeof value !== "object" || typeof value.file !== "string" ||
+      /[\\/]/.test(value.file) || !/\.(md|txt)$/i.test(value.file)) throw new ValidationError("Invalid preset identity.");
+  return {
+    file: requireText(value.file, "preset.file", { max: 255 }),
+    resolved_content: requireText(value.resolved_content, "preset.resolved_content", { allowEmpty: true })
+  };
+}
+
 function validateReference(reference, index) {
   if (!reference || typeof reference !== "object") {
     throw new ValidationError(`Reference ${index + 1} is invalid.`, "references");
@@ -64,6 +74,7 @@ function validateReference(reference, index) {
       ? null
       : requireText(reference.existingFile, `references[${index}].existingFile`, { max: 1_024 }),
     missing: reference.missing === true,
+    notePreset: validatePreset(reference.notePreset),
     roles: requireOptionList(reference.roles, OPTIONS.referenceRoles, `references[${index}].roles`),
     note: requireText(reference.note ?? "", `references[${index}].note`, { allowEmpty: true })
   };
@@ -114,6 +125,7 @@ export function normalizeJobInput(input) {
     name,
     originalName,
     description: requireText(input.description, "description"),
+    descriptionPreset: validatePreset(input.descriptionPreset),
     asset: {
       category: requireOption(input.asset?.category, OPTIONS.assetCategories, "asset.category"),
       quality: requireOption(input.asset?.quality, OPTIONS.qualityLevels, "asset.quality"),
@@ -172,7 +184,12 @@ export function buildManifest(job, storedReferences) {
       }))
     },
     metadata: {
-      reference_file_policy: "Removed references are excluded from manifest and TASK.md; existing files are retained on disk."
+      reference_file_policy: "Removed references are excluded from manifest and TASK.md; existing files are retained on disk.",
+      ...(job.descriptionPreset ? { job_description_preset: job.descriptionPreset } : {}),
+      ...(storedReferences.some((ref) => ref.notePreset) ? {
+        reference_note_presets: Object.fromEntries(storedReferences.filter((ref) => ref.notePreset)
+          .map((ref) => [ref.relativePath, ref.notePreset]))
+      } : {})
     }
   };
 }

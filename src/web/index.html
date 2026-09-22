@@ -3,6 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="icon" href="data:," />
     <title>3D Job Composer</title>
     <link rel="stylesheet" href="styles.css" />
   </head>
@@ -42,6 +43,12 @@
               <input id="job-name" name="jobName" required maxlength="255" placeholder="resource_collection_machine_001" />
               <small id="sanitized-name">Folder name will appear here.</small>
             </label>
+            <div class="preset-row">
+              <label>Job Description Preset<select id="description-preset"><option value="">No presets available</option></select></label>
+              <button id="apply-description-preset" class="secondary-button" type="button">APPLY</button>
+              <button id="refresh-presets" class="ghost-button" type="button">Refresh Presets</button>
+            </div>
+            <small id="preset-status" role="status"></small>
             <label>Job Description <span class="required">Required</span>
               <textarea id="description" name="description" required rows="8" placeholder="Describe the asset, constraints, and intent. Your text is stored without rewriting."></textarea>
             </label>
@@ -105,11 +112,18 @@
           <div class="section-heading compact">
             <span class="step">06</span><div><h2 id="create-section-title">Create package</h2><p id="create-section-help">Choose an absolute Windows folder path.</p></div>
           </div>
+          <div class="preset-row">
+            <label>Destination Preset<select id="destination-preset"><option value="">No presets available</option></select></label>
+            <button id="save-destination" class="secondary-button" type="button">Save Current Path as Preset</button>
+            <button id="delete-destination" class="ghost-button" type="button">Delete Preset</button>
+          </div>
+          <small id="destination-status" role="status"></small>
           <label>Job Root
             <input id="root-path" required placeholder="C:\_InternalProjects\3DJobs" />
           </label>
           <div class="create-row">
             <p>The package will include TASK.md, manifest.json, RUN_LOG.md, references, work, and output.</p>
+            <button id="save-as-button" class="secondary-button" type="button" hidden>SAVE AS...</button>
             <button id="create-button" class="primary-button" type="submit">CREATE JOB</button>
           </div>
           <div id="status" class="status" role="status" aria-live="polite" hidden></div>
@@ -126,6 +140,10 @@
         <div class="reference-content">
           <div class="reference-topline"><div><strong class="reference-name"></strong><span class="reference-meta"></span></div><button class="remove-button" type="button">Remove</button></div>
           <fieldset><legend>Roles</legend><div class="reference-roles option-grid"></div></fieldset>
+          <div class="preset-row">
+            <label>Reference Note Preset<select class="reference-preset"><option value="">No presets available</option></select></label>
+            <button class="apply-reference-preset secondary-button" type="button">APPLY</button>
+          </div>
           <label>Note<textarea class="reference-note" rows="3" placeholder="What should be used or ignored from this reference?"></textarea></label>
         </div>
       </article>

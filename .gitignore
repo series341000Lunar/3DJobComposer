@@ -4,3 +4,6 @@ Thumbs.db
 coverage/
 *.log
 .tmp/
+
+settings.local.json
+settings.local.json.*.tmp

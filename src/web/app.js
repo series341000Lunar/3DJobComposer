@@ -1,5 +1,7 @@
 const state = {
   config: null,
+  presets: {}, destinations: [], saving: false,
+  descriptionPreset: null, descriptionSource: "", loadedIdentity: null,
   readOnly: false,
   references: [],
   aiItems: [],
@@ -9,6 +11,69 @@ const state = {
   openToken: null
 };
 const byId = (id) => document.getElementById(id);
+
+
+function exactText(field, original = "") {
+  return typeof original === "string" && field.value === original.replace(/\r\n?/g, "\n") ? original : field.value;
+}
+function populatePresets(select, category) {
+  const current = select.value;
+  const presets = state.presets[category] || [];
+  select.replaceChildren(new Option(presets.length ? "Select a preset" : "No presets available", ""));
+  presets.forEach((preset) => select.add(new Option(preset.file, preset.file)));
+  if (presets.some((preset) => preset.file === current)) select.value = current;
+}
+async function refreshPresets() {
+  try {
+    const response = await fetch("/api/presets");
+    const result = await response.json();
+    if (!response.ok) throw new Error(result.error);
+    state.presets = result.categories;
+    populatePresets(byId("description-preset"), "jobDescription");
+    byId("reference-list").querySelectorAll(".reference-preset").forEach((select) => populatePresets(select, "Referenceimage"));
+    byId("preset-status").textContent = result.warnings.join("\n");
+  } catch (error) { byId("preset-status").textContent = "Presets unavailable. Manual input remains available. " + error.message; }
+}
+function applyTextPreset(select, category, field, message, applied) {
+  if (state.readOnly || state.saving) return;
+  const preset = (state.presets[category] || []).find((item) => item.file === select.value);
+  if (!preset) return;
+  if (field.value !== "" && !confirm(message)) return;
+  field.value = preset.content;
+  applied({ file: preset.file, resolved_content: preset.content });
+}
+function renderDestinations(selected = "") {
+  const select = byId("destination-preset");
+  select.replaceChildren(new Option(state.destinations.length ? "Select a destination" : "No presets available", ""));
+  state.destinations.forEach((preset) => select.add(new Option(preset.name, preset.name)));
+  select.value = selected;
+}
+async function loadDestinations() {
+  try {
+    const response = await fetch("/api/settings"), result = await response.json();
+    if (!response.ok) throw new Error(result.error);
+    state.destinations = result.destinationPresets;
+    renderDestinations(state.destinations.find((preset) => preset.path === byId("root-path").value)?.name || "");
+  } catch (error) { byId("destination-status").textContent = error.message; }
+}
+async function changeDestination(action) {
+  if (state.saving) return;
+  const select = byId("destination-preset");
+  const name = action === "save" ? prompt("Destination preset name", select.value) : select.value;
+  if (!name?.trim()) return;
+  if (action === "delete" && !confirm("Delete this destination preset?")) return;
+  try {
+    const response = await fetch("/api/settings/destinations", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action, name, path: byId("root-path").value })
+    });
+    const result = await response.json();
+    if (!response.ok) throw new Error(result.error);
+    state.destinations = result.destinationPresets;
+    renderDestinations(action === "save" ? name.trim() : "");
+    byId("destination-status").textContent = action === "save" ? "Destination preset saved on this machine." : "Destination preset deleted.";
+  } catch (error) { byId("destination-status").textContent = error.message; }
+}
 
 function addOptions(select, values, defaultValue) {
   select.replaceChildren();
@@ -88,6 +153,13 @@ function renderReference(reference) {
   card.querySelector(".reference-meta").textContent = `${reference.missing ? "MISSING · " : ""}${formatBytes(estimatedSize)} · ${reference.mimeType || "image"}`;
   addChoices(card.querySelector(".reference-roles"), `roles-${reference.id}`, state.config.options.referenceRoles, reference.roles || []);
   card.querySelector(".reference-note").value = reference.note || "";
+  populatePresets(card.querySelector(".reference-preset"), "Referenceimage");
+  card.querySelector(".apply-reference-preset").addEventListener("click", () =>
+    applyTextPreset(card.querySelector(".reference-preset"), "Referenceimage", card.querySelector(".reference-note"),
+      "현재 Reference Note를 프리셋 내용으로 교체하시겠습니까?", (snapshot) => {
+        reference.notePreset = snapshot;
+        reference.note = snapshot.resolved_content;
+      }));
   card.querySelector(".remove-button").addEventListener("click", () => {
     state.references = state.references.filter((item) => item.id !== reference.id);
     state.aiItems.forEach((item) => { item.sourceReferenceIds = item.sourceReferenceIds.filter((id) => id !== reference.id); });
@@ -134,7 +206,8 @@ async function serializeReferences() {
       existingFile: reference.existingFile,
       missing: reference.missing,
       roles: checkedValues(card.querySelector(".reference-roles")),
-      note: card.querySelector(".reference-note").value
+      note: exactText(card.querySelector(".reference-note"), reference.note),
+      notePreset: reference.notePreset || null
     };
   }));
 }
@@ -236,11 +309,13 @@ function setMode(mode, result = null) {
   byId("mode-title").textContent = state.readOnly ? "Current Mode: Read-only Job" : editing ? "Current Mode: Editing Existing Job" : "Current Mode: New Job";
   byId("loaded-job-label").textContent = editing ? `Loaded Job: ${state.loadedJobPath}` : "Create a new package without overwriting an existing Job.";
   byId("new-job-button").hidden = !editing;
-  byId("job-name").readOnly = editing;
-  byId("root-path").readOnly = editing;
+  byId("job-name").readOnly = state.readOnly;
+  byId("root-path").readOnly = state.readOnly;
+  byId("save-as-button").hidden = !editing;
+  byId("save-as-button").disabled = state.readOnly;
   byId("create-button").textContent = editing ? "SAVE CHANGES" : "CREATE JOB";
   byId("create-section-title").textContent = editing ? "Save loaded package" : "Create package";
-  byId("create-section-help").textContent = state.readOnly ? "Inspection only. Saving is disabled to protect this Job." : editing ? "Only the explicitly loaded Job can be overwritten." : "Choose an absolute Windows folder path.";
+  byId("create-section-help").textContent = state.readOnly ? "Inspection only. Saving is disabled to protect this Job." : editing ? "SAVE CHANGES updates the loaded folder above. Changed Job Name / Job Root apply only to SAVE AS." : "Choose an absolute Windows folder path.";
   if (result?.warnings?.length) {
     byId("load-warnings").hidden = false;
     byId("load-warnings").textContent = `Warnings:\n- ${result.warnings.join("\n- ")}`;
@@ -251,6 +326,9 @@ function setMode(mode, result = null) {
 
 function applyLoadedJob(result) {
   const job = result.job;
+  state.loadedIdentity = { jobName: job.jobName, rootPath: job.rootPath };
+  state.descriptionPreset = job.descriptionPreset || null;
+  state.descriptionSource = job.description;
   state.editToken = result.editToken;
   state.loadedJobPath = result.jobPath;
   state.openToken = result.openToken;
@@ -258,6 +336,7 @@ function applyLoadedJob(result) {
   byId("sanitized-name").textContent = `Folder: ${sanitizedPreview(job.jobName)}`;
   byId("description").value = job.description;
   byId("root-path").value = job.rootPath;
+  renderDestinations(state.destinations.find((preset) => preset.path === job.rootPath)?.name || "");
   byId("load-job-path").value = result.jobPath;
   byId("asset-category").value = job.asset.category;
   byId("quality").value = job.asset.quality;
@@ -309,6 +388,9 @@ async function loadExistingJob() {
 function resetToNewJob() {
   state.editToken = null;
   state.loadedJobPath = null;
+  state.loadedIdentity = null;
+  state.descriptionPreset = null;
+  state.descriptionSource = "";
   state.references = [];
   state.aiItems = [];
   byId("reference-list").replaceChildren();
@@ -333,7 +415,8 @@ function resetToNewJob() {
 async function buildPayload() {
   return {
     jobName: byId("job-name").value,
-    description: byId("description").value,
+    description: exactText(byId("description"), state.descriptionSource),
+    descriptionPreset: state.descriptionPreset,
     rootPath: byId("root-path").value.trim(),
     asset: {
       category: byId("asset-category").value,
@@ -349,34 +432,48 @@ async function buildPayload() {
   };
 }
 
-async function submit(event) {
+
+async function submit(event, action = "default") {
   event.preventDefault();
+  if (state.saving) return;
   if (state.readOnly) return showStatus("error", "This Job is read-only. Saving is disabled.");
+  const saveAs = action === "saveAs";
+  const editing = state.mode === "editing";
+  // Cancellation precedes serialization, status changes, localStorage and HTTP.
+  if (saveAs ? !confirm("새로 저장하시겠습니까?") : editing && !confirm("덮어쓰시겠습니까?")) return;
+  if (saveAs && !editing) return;
   const button = byId("create-button");
-  if (!sanitizedPreview(byId("job-name").value)) return showStatus("error", "Job Name must contain at least one safe character.");
+  if ((saveAs || !editing) && !sanitizedPreview(byId("job-name").value)) return showStatus("error", "Job Name must contain at least one safe character.");
   const invalidPart = state.aiItems.find((item) => item.scope === "Specific Part" && !item.targetPart.trim());
   if (invalidPart) return showStatus("error", "Target Part Name is required for every Specific Part package item.");
-
+  state.saving = true;
   button.disabled = true;
   byId("job-form").inert = true;
   byId("load-job-button").disabled = true;
   byId("new-job-button").disabled = true;
-  button.textContent = state.mode === "editing" ? "SAVING…" : "CREATING…";
-  showStatus("success", state.mode === "editing" ? "Saving the loaded Job…" : "Preparing reference files and creating the package…");
+  button.textContent = "SAVING…";
+  showStatus("success", saveAs ? "Creating a new Job from the current authoring state…" : editing ? "Saving the loaded Job…" : "Creating the package…");
   try {
     const payload = await buildPayload();
-    localStorage.setItem("3dJobComposer.rootPath", payload.rootPath);
-    const editing = state.mode === "editing";
-    const response = await fetch(editing ? "/api/jobs/save" : "/api/jobs", {
+    // Editable name/root are Save As destinations; SAVE CHANGES remains bound to its source.
+    if (editing && !saveAs) Object.assign(payload, state.loadedIdentity);
+    const response = await fetch(saveAs ? "/api/jobs/save-as" : editing ? "/api/jobs/save" : "/api/jobs", {
       method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify(editing ? { editToken: state.editToken, job: payload } : payload)
     });
     const result = await response.json();
     if (!response.ok) {
       if (result.recovery?.state === "recovery_required") setMode(state.mode, { readOnly: true, warnings: [result.error] });
-      throw new Error(result.error || `Could not ${editing ? "save" : "create"} the Job.`);
+      throw new Error(result.error || "Could not save the Job.");
     }
-    if (editing) {
+    localStorage.setItem("3dJobComposer.rootPath", payload.rootPath);
+    if (saveAs) {
+      if (result.loadError) {
+        showStatus("error", `New Job created at ${result.jobPath}, but it could not be loaded: ${result.loadError}. Load that path before editing it. The original Job remains active.`);
+        return;
+      }
+      applyLoadedJob(result);
+    } else if (editing) {
       state.references.forEach((reference, index) => {
         reference.existingFile = result.references[index].existingFile;
         reference.file = null;
@@ -388,14 +485,15 @@ async function submit(event) {
       showStatus("error", `Saved successfully, but recovery cleanup is required: ${result.recovery.recoveryPath}. Stop Composer and run the documented recovery command.`);
       return;
     }
-    showStatus("success", `Job ${editing ? "saved" : "created"} successfully.\n\n${result.jobPath}`, result.openToken);
-  } catch (error) {
-    showStatus("error", error.message);
-  } finally {
+    showStatus("success", `Job ${saveAs || !editing ? "created" : "saved"} successfully.\n\n${result.jobPath}`, result.openToken);
+  } catch (error) { showStatus("error", error.message); }
+  finally {
+    state.saving = false;
     byId("job-form").inert = false;
     byId("load-job-button").disabled = false;
     byId("new-job-button").disabled = false;
     button.disabled = state.readOnly;
+    byId("save-as-button").disabled = state.readOnly;
     button.textContent = state.mode === "editing" ? "SAVE CHANGES" : "CREATE JOB";
   }
 }
@@ -431,7 +529,23 @@ async function initialize() {
   byId("load-job-button").addEventListener("click", loadExistingJob);
   byId("new-job-button").addEventListener("click", resetToNewJob);
   byId("job-form").addEventListener("submit", submit);
+  byId("save-as-button").addEventListener("click", (event) => submit(event, "saveAs"));
+  byId("refresh-presets").addEventListener("click", refreshPresets);
+  byId("apply-description-preset").addEventListener("click", () =>
+    applyTextPreset(byId("description-preset"), "jobDescription", byId("description"),
+      "현재 Job Description을 프리셋 내용으로 교체하시겠습니까?", (snapshot) => {
+        state.descriptionPreset = snapshot;
+        state.descriptionSource = snapshot.resolved_content;
+      }));
+  byId("destination-preset").addEventListener("change", () => {
+    const preset = state.destinations.find((item) => item.name === byId("destination-preset").value);
+    if (preset && !state.readOnly && !state.saving) byId("root-path").value = preset.path;
+  });
+  byId("save-destination").addEventListener("click", () => changeDestination("save"));
+  byId("delete-destination").addEventListener("click", () => changeDestination("delete"));
+  byId("root-path").addEventListener("input", () => renderDestinations(state.destinations.find((preset) => preset.path === byId("root-path").value)?.name || ""));
   setMode("new");
+  await Promise.all([refreshPresets(), loadDestinations()]);
 }
 
 initialize().catch((error) => showStatus("error", `Could not initialize the app: ${error.message}`));

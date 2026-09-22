@@ -165,4 +165,77 @@ $env:PLAYWRIGHT_MODULE = Join-Path $browserTools "node_modules/playwright/index.
 node tools/browser-phase1.mjs
 ```
 
-The smoke creates only synthetic Jobs in `.tmp/browser-phase1-*`, verifies create/load/edit/save/reload, repeated reference save, and future-schema read-only behavior, and records screenshots plus `result.json`. The known unrelated `favicon.ico` 404 is recorded separately from application JavaScript errors; it is not silently suppressed.
+The smoke creates only synthetic Jobs in `.tmp/browser-phase1-*`, verifies create/load/edit/save/reload, repeated reference save, and future-schema read-only behavior, and records screenshots plus `result.json`. Phase 2 declares an empty favicon to avoid the earlier unrelated favicon 404. Browser console output is recorded in the result.
+
+## Phase 2: save actions and optional presets
+
+### CREATE, SAVE CHANGES, and SAVE AS
+
+- **CREATE JOB** creates the current new draft and refuses an existing destination.
+- **SAVE CHANGES** asks **덮어쓰시겠습니까?** before serialization, HTTP, or filesystem writes. Cancel leaves the UI draft, edit token, and files unchanged. Confirmation uses the Phase 1 recoverable save path for the loaded folder.
+- **SAVE AS...** is available for a supported loaded Job. Edit **Job Name** and **Job Root**, then select SAVE AS and confirm **새로 저장하시겠습니까?**. Cancel does nothing; an existing destination is rejected without an automatic suffix.
+- While editing, changed name/root fields belong to SAVE AS only. SAVE CHANGES continues to update the folder shown in the Loaded Job banner.
+- SAVE AS copies current authoring fields and the retained reference image bytes into a fresh package. It regenerates manifest/TASK, creates a fresh RUN_LOG template, and leaves work/output empty. The source Job is unchanged. Missing reference bytes must be restored or the reference explicitly removed before Save As.
+- After success the new Job becomes active with a new edit token. Subsequent SAVE CHANGES updates the new Job. If creation succeeded but loading the new Job failed, the UI reports its created path and keeps the old context until a successful explicit LOAD.
+- Future schemas and Jobs awaiting recovery cannot use either save action.
+
+### Destination presets are machine preferences
+
+Use **Save Current Path as Preset**, select a named destination to restore Job Root, or **Delete Preset**. Saving the same name updates its path. A path need not exist to be remembered, including `Z:\RicochetAngles\00_Asset\MODEL`; actual CREATE/SAVE AS still applies normal path validation.
+
+Settings are stored per machine/user at `%LOCALAPPDATA%\3DJobComposer\settings.local.json` (fallback: `~/.config/3DJobComposer/settings.local.json`). They are never put in a Job manifest or copied by Save As. A project-local `settings.local.json` is also gitignored. Writes use a temporary file and rename; malformed existing settings are preserved and reported, not reset. Manual Job Root input remains available if settings cannot be read.
+
+### File-based PromptPreset sources
+
+```text
+PromptPreset/
+├─ jobDescription/
+├─ Referenceimage/
+├─ AIreferencePackage/
+└─ GenerateMasterReference/
+```
+
+These folders are optional. Missing roots, missing categories, empty folders, and zero supported files are normal and show **No presets available**. Existing Windows folder capitalization is accepted without renaming user folders. Only regular `.md` and `.txt` files are listed, sorted by their exact filenames. Their complete UTF-8 text is used literally; Markdown, variables, and instructions are not executed or interpreted. Startup and **Refresh Presets** read current files; no watcher is installed.
+
+Choose a **Job Description Preset** or a per-reference **Reference Note Preset**, then press **APPLY**. Selection alone never replaces text. Nonempty text requires replacement confirmation; Cancel preserves it. Reference presets affect only the selected Note and never infer or change Roles. Manual natural-language authoring remains valid with no presets.
+
+Applied provenance is optional schema 1.1 convenience metadata:
+```json
+{
+  "metadata": {
+    "job_description_preset": {
+      "file": "Example.md",
+      "resolved_content": "The complete text at application time"
+    },
+    "reference_note_presets": {
+      "references/ref_001.png": {
+        "file": "ShapeOnly.md",
+        "resolved_content": "The complete note preset text"
+      }
+    }
+  }
+}
+```
+
+Snapshots survive LOAD/SAVE/SAVE AS and do not depend on the current preset file. Subsequent manual edits change the authoring text, while its applied preset snapshot remains an application-time record. Refresh does not reapply or rewrite snapshots. Unedited CRLF text is retained when serialized despite textarea newline normalization. Omitting optional provenance in an older client request preserves it; explicit null clears it. Reference snapshot keys follow the new Job's own reference paths.
+
+Schema stays **1.1**: these are optional metadata extensions, not new required authoring fields. Existing 1.1 no-op preservation, known 1.0 migration, and future-schema protection remain in effect. Composer version remains **0.2.1** for this working change.
+
+The listing API discovers **AIreferencePackage** and **GenerateMasterReference**, but neither has an execution/application workflow in Phase 2. GPT Image, Codex execution, master-reference generation, databases, cloud sync, and templating are not implemented.
+
+New APIs: `GET /api/presets`, `GET /api/settings`, `POST /api/settings/destinations`, and token-bound `POST /api/jobs/save-as`. All POSTs retain Phase 1 local Origin/Host/JSON checks.
+
+### Phase 2 verification
+
+`node --test` includes the existing 30 tests plus 19 Phase 2 regressions. New tests use only `.tmp/phase2-*` synthetic Jobs/settings/presets. For browser verification, configure Playwright as described above and run:
+
+```powershell
+node tools/browser-phase1.mjs
+node tools/browser-phase2.mjs
+```
+
+The Phase 2 Edge smoke checks both confirmation cancellations, Save As switching, fresh runtime state, independent references, destination persistence, explicit text application, exact snapshots, and future read-only behavior. Its machine settings and preset files are isolated under `.tmp/browser-phase2-*`; screenshots and `result.json` are written there. No real user Job or user preset source is modified.
+
+### Stop all Node.js processes
+
+Run `stop-all-node.bat` to force-stop every process named `node.exe`, including Node applications other than Composer. It uses `taskkill /F /IM node.exe`, shows the result, and pauses. If access is denied for an elevated process, run the BAT as administrator. Then start Composer again and refresh the browser. The BAT is a manual utility and is not invoked by Composer.

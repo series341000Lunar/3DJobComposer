@@ -97,3 +97,9 @@ legend { margin-bottom: 9px; }
 .status.error { color: #ffb2b2; border: 1px solid #6d3c3c; background: #2d1717; }
 .open-button { margin-top: 11px; border: 1px solid #4f8e75; border-radius: 6px; padding: 8px 12px; background: transparent; color: var(--accent); cursor: pointer; }
 @media (max-width: 1100px) { .two-column { grid-template-columns: 1fr; } }
+
+.preset-row { display: flex; align-items: end; gap: 10px; margin: 12px 0; flex-wrap: wrap; }
+.preset-row label { flex: 1; min-width: 220px; }
+.create-row p { flex: 1; }
+button:disabled { cursor: not-allowed; opacity: .55; }
+[hidden] { display: none !important; }
